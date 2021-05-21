@@ -18,17 +18,18 @@ def decode_features(features):
 if __name__ == "__main__":
 
     threshold = 0.00000000001
-    board_size = [13, 13]
+    length = 4
+    width = 4
+    board_size = [length, width]
     wall = []
 
     pygame.init()
     #
     # # Set window size and title, and frame delay
-    surfaceSize = (13 * 50, 13 * 50)
+    surfaceSize = (length * 50, width * 50)
     #
     # # Create the window
     surface = pygame.display.set_mode(surfaceSize, 0, 0)
-
 
     n = board_size[0]*board_size[1]
     board = Grid_World(surface, board_size, wall)
@@ -41,17 +42,7 @@ if __name__ == "__main__":
     agent.set_WallCord(board.wall_coords)
     agent.set_P()
 
-    # agent.init_V()
-    # agent.SVI(threshold)
-    # agent.plot("SVI")
-
-    # get agent room information
     blocks = agent.NB_initiation()
-
-    # print agent.room
-    # print blocks["R1"]
-
-    # print agent.R
 
     room_agent = {}
     room_path = {}
@@ -91,13 +82,9 @@ if __name__ == "__main__":
     agent.SVI(threshold)
     # agent.init_V()
 
-
     agent.plot_curve(agent.action_diff, agent.hybrid_diff,  "compare diff")
     agent.plot_curve(agent.action_val, agent.hybrid_val, "compare val")
     agent.plot_curve(agent.action_pi_diff, agent.hybrid_pi_diff, "compare pi")
-
-    # room_agent[("R1", "R2")].plot("R1_to_R2_SVI")
-    # print room_agent[("R1", "R2")].Policy
 
 
 

@@ -17,6 +17,10 @@
 import pygame, sys, time, random
 from pygame.locals import *
 import numpy as np
+import yaml
+from random import random
+
+
 action_dict = {'0': "Up",
                '1': "Down",
                '2': "Right",
@@ -31,12 +35,15 @@ class Tile:
     # initialize the class attributes that are common to all
     # tiles.
 
-    borderColor = pygame.Color('black')
+    borderColor = pygame.Color('white')
     # borderColor = (255, 255, 255) #r,g,y
-    borderWidth = 4  # the pixel width of the tile border
-    image = pygame.image.load('marvin.jpg')
+    borderWidth = 1  # the pixel width of the tile border
+    image_uav = pygame.image.load('uav.png')
+    image_station = pygame.image.load('station.png')
+    image_storm = pygame.image.load('storm.png')
+    image_goal = pygame.image.load('goal.png')
 
-    def __init__(self, x, y, wall, surface, tile_size = (50, 50)):
+    def __init__(self, x, y, wall, surface, tile_size = (32, 32)):
         # Initialize a tile to contain an image
         # - x is the int x coord of the upper left corner
         # - y is the int y coord of the upper left corner
@@ -46,79 +53,66 @@ class Tile:
 
         self.wall = wall
         self.origin = (x, y)
-        self.tile_coord = [x//50, y//50]
+        self.tile_coord = [x//32, y//32]
         self.surface = surface
         self.tile_size = tile_size
+        rect = self.image_uav.get_rect()
+        # print(rect)
 
     def draw(self, pos, goal):
         # Draw the tile.
         # print pos, goal, self.origin, self.wall
-
         rectangle = pygame.Rect(self.origin, self.tile_size)
 
         if self.wall:
             pygame.draw.rect(self.surface, pygame.Color('gray'), rectangle, 0)
         elif goal == self.tile_coord:
-            pygame.draw.rect(self.surface, (50, 0, 0), rectangle, 0) #pygame.Color('green')
+            # pygame.draw.rect(self.surface, (32, 0, 0), rectangle, 0) #pygame.Color('green')
+            self.surface.blit(self.image_goal, rectangle)
         else:
-            pygame.draw.rect(self.surface, pygame.Color('white'), rectangle, 0)
+            pygame.draw.rect(self.surface, pygame.Color('Lavender'), rectangle, 0)
 
         if pos == self.tile_coord:
-            pygame.draw.rect(self.surface, pygame.Color('yellow'), rectangle, 0)
+            # pygame.draw.rect(self.surface, pygame.Color('yellow'), rectangle, 0)
+            self.surface.blit(self.image_station, rectangle)
+            # pygame.blit(IMAGE, rect)
             # self.surface.blit(Tile.image, self.origin)
-
-
-
 
         pygame.draw.rect(self.surface, Tile.borderColor, rectangle, Tile.borderWidth)
 
 
 class Grid_World():
     # An object in this class represents a Grid_World game.
-    tile_width = 50
-    tile_height = 50
+    tile_width = 32
+    tile_height = 32
 
-    def __init__(self, surface, board_size = (13,13), wall_coords=[], start_coord=(2,3), goal_coord=(9,9)):
+    def __init__(self, surface, **kwargs):
         # Intialize a Grid_World game.
         # - surface is the pygame.Surface of the window
 
         self.surface = surface
         self.bgColor = pygame.Color('blue')
 
-        self.board_size = list(board_size)
-        self.wall_coords = wall_coords
+        self.board_size = list([kwargs['graph_size']['x'], kwargs['graph_size']['y']])
+        self.wall_coords = kwargs['obstacles']
         self.visit = []
-        self.cumulated_heat = np.zeros(board_size)
+        self.cumulated_heat = np.zeros(self.board_size)
 
-        if not self.wall_coords:
-            self.wall_coords = [[0, i] for i in range(board_size[1])]
-            self.wall_coords += [[12, i] for i in range(board_size[1])]
-            self.wall_coords += [[j, 0] for j in range(board_size[0])]
-            self.wall_coords += [[j, 12] for j in range(board_size[0])]
+        self.wall_coords = []
 
-            self.wall_coords += [[j, 6] for j in range(board_size[0])]
-            self.wall_coords += [[6, i] for i in range(0, 6)]
+        self.start_coord = list(kwargs['UAV']['init_state'])
+        self.goal_coord = list(kwargs['targets'])[0]
+        self.position = self.start_coord[:]
 
-            self.wall_coords += [[7, i] for i in range(6, board_size[1])]
+        self.cloud_coords = kwargs['clouds']['positions']
+        self.cloud_dynamics = kwargs['clouds']['dynamics']
+        self.cloud_maximum_stay_tol = kwargs['clouds']['maximal_stay_steps']
+        self.cloud_stay_counter = np.zeros(len(self.cloud_coords))
 
-            self.wall_coords.remove([3, 6])
-            self.wall_coords.remove([10, 6])
-            self.wall_coords.remove([6, 2])
-            self.wall_coords.remove([7, 9])
-
-        # self.wall_coords = []
-
-
-
-        # else:
-        #     self.wall_coords = wall_coords
-
-
-        self.start_coord = list(start_coord)
-        self.goal_coord = list(goal_coord)
-        self.position = list(start_coord)
         self.actions = range(4)
+        self.cloud_actions = [-1, 0, 1]
         self.reward = 0
+        self.manual = kwargs['manual']
 
         self.calc_wall_coords()
         self.createTiles()
@@ -179,7 +173,7 @@ class Grid_World():
             self.cumulated_heat[p] = 205
 
         tempColor = (255 - self.cumulated_heat[p], 0, 0)
-        rectangle = pygame.Rect(p, (50, 50))
+        rectangle = pygame.Rect(p, (32, 32))
         pygame.draw.rect(self.surface, tempColor, rectangle, 0)
 
     def update(self):
@@ -194,30 +188,52 @@ class Grid_World():
             self.draw()
             return False
 
+    def step_cloud(self):
+        # determine the cloud dynamics
+        if self.cloud_dynamics == 'random_walk':
+            for i in range(len(self.cloud_coords)):
+                if self.cloud_stay_counter[i] >= self.cloud_maximum_stay_tol:
+                    act = random.choice([-1, 1])
+                    self.cloud_stay_counter[i] = 0
+                else:
+                    act = random.choice(self.cloud_actions)
+
+                if act == 0:
+                    self.cloud_stay_counter[i] += 1
+                else:
+                    temp_new_pos = self.cloud_coords[i][0] + act
+                    temp_new_pos_ = self.cloud_coords[i][0] - act
+                    if temp_new_pos < 0 or temp_new_pos > self.board_size[0]-1:
+                        self.cloud_coords[i][0] = temp_new_pos_
+                    else:
+                        self.cloud_coords[i][0] = temp_new_pos
+        return False
+
+
     def step(self, action):
         x, y = self.position
 
         step_back = self.position
 
         if action == 0:   # Action Up
-            # print "Up"
-            # if [x+1, y] not in self.wall_coords and x+1 < self.board_size[0]:
-            self.position = [x+1, y]
+            print("Move Right")
+            if [x+1, y] not in self.wall_coords and x+1 < self.board_size[0]:
+                self.position = [x+1, y]
 
         elif action == 1:   # Action Down
-            # print "Down"
-            # if [x-1, y] not in self.wall_coords and x-1 >= 0:
-            self.position = [x-1, y]
+            print("Move Left")
+            if [x-1, y] not in self.wall_coords and x-1 >= 0:
+                self.position = [x-1, y]
 
         elif action == 2:   # Action Right
-            # print "Right"
-            # if [x, y+1] not in self.wall_coords and y+1 < self.board_size[1]:
-            self.position = [x, y+1]
+            print("Move Up")
+            if [x, y+1] not in self.wall_coords and y+1 < self.board_size[1]:
+                self.position = [x, y+1]
 
         elif action == 3:   # Action Left
-            # print "Left"
-            # if [x, y-1] not in self.wall_coords and y-1 >= 0:
-            self.position = [x, y-1]
+            print("Move Down")
+            if [x, y-1] not in self.wall_coords and y-1 >= 0:
+                self.position = [x, y-1]
 
         # Reward definition
         self.get_reward(step_back, self.position)
@@ -225,7 +241,7 @@ class Grid_World():
         #print action_dict[str(action)], self.position
     def get_reward(self, step_back, pos):
         if pos == self.goal_coord:
-            self.reward = 5000
+            self.reward = 3200
         elif pos in self.wall_coords:
             self.position = step_back
             self.reward = -10
@@ -263,9 +279,12 @@ if __name__ == "__main__":
     pygame.init()
 
     # Set window size and title, and frame delay
-    surfaceSize = (50*13, 50*13)
-    windowTitle = 'Grid_World'
-    pauseTime = 1  # smaller is faster game
+    surfaceSize = (32*4, 32*4)
+    windowTitle = 'UAV Grid World'
+    pauseTime = 1 #0.01  # smaller is faster game
+
+    with open("toy_config.yaml", 'r') as stream:
+        data_loaded = yaml.safe_load(stream)
 
     # Create the window
     surface = pygame.display.set_mode(surfaceSize, 0, 0)
@@ -275,7 +294,7 @@ if __name__ == "__main__":
     gameOver = False
 
     # print surface
-    board = Grid_World(surface)
+    board = Grid_World(surface, **data_loaded)
 
     # Draw objects
     board.draw()
@@ -293,6 +312,7 @@ if __name__ == "__main__":
                 # Handle additional events
 
         # Update and draw objects for next frame
+        board.step(1)
         gameOver = board.update()
         if gameOver:
             break
