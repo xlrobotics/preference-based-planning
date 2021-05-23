@@ -18,7 +18,8 @@ import pygame, sys, time, random
 from pygame.locals import *
 import numpy as np
 import yaml
-from random import random
+import random
+# from random import random
 
 
 action_dict = {'0': "Up",
@@ -40,8 +41,10 @@ class Tile:
     borderWidth = 1  # the pixel width of the tile border
     image_uav = pygame.image.load('uav.png')
     image_station = pygame.image.load('station.png')
-    image_storm = pygame.image.load('storm.png')
+    image_cloud = pygame.image.load('storm.png')
     image_goal = pygame.image.load('goal.png')
+    image_charge = pygame.image.load('in_station.png')
+    image_trap = pygame.image.load('in_storm.png')
 
     def __init__(self, x, y, wall, surface, tile_size = (32, 32)):
         # Initialize a tile to contain an image
@@ -59,22 +62,31 @@ class Tile:
         rect = self.image_uav.get_rect()
         # print(rect)
 
-    def draw(self, pos, goal):
+    def draw(self, pos, goal, clouds, stations):
         # Draw the tile.
         # print pos, goal, self.origin, self.wall
         rectangle = pygame.Rect(self.origin, self.tile_size)
 
         if self.wall:
             pygame.draw.rect(self.surface, pygame.Color('gray'), rectangle, 0)
-        elif goal == self.tile_coord:
+        if self.tile_coord in goal:
             # pygame.draw.rect(self.surface, (32, 0, 0), rectangle, 0) #pygame.Color('green')
             self.surface.blit(self.image_goal, rectangle)
-        else:
+        if self.tile_coord in clouds:
+            self.surface.blit(self.image_cloud, rectangle)
+        if self.tile_coord in stations:
+            self.surface.blit(self.image_station, rectangle)
+
+        if not (self.tile_coord in goal or self.tile_coord in clouds or self.tile_coord in stations or self.tile_coord == pos):
             pygame.draw.rect(self.surface, pygame.Color('Lavender'), rectangle, 0)
 
         if pos == self.tile_coord:
-            # pygame.draw.rect(self.surface, pygame.Color('yellow'), rectangle, 0)
-            self.surface.blit(self.image_station, rectangle)
+            if self.tile_coord in clouds:
+                self.surface.blit(self.image_trap, rectangle)
+            elif self.tile_coord in stations:
+                self.surface.blit(self.image_charge, rectangle)
+            else:
+                self.surface.blit(self.image_uav, rectangle)
             # pygame.blit(IMAGE, rect)
             # self.surface.blit(Tile.image, self.origin)
 
@@ -101,8 +113,12 @@ class Grid_World():
         self.wall_coords = []
 
         self.start_coord = list(kwargs['UAV']['init_state'])
-        self.goal_coord = list(kwargs['targets'])[0]
+        self.goal_coord = list(kwargs['targets'])
         self.position = self.start_coord[:]
+        self.battery = kwargs['UAV']['battery']
+        self.battery_cap = self.battery
+
+        self.station_coords = list(kwargs['stations'])
 
         self.cloud_coords = kwargs['clouds']['positions']
         self.cloud_dynamics = kwargs['clouds']['dynamics']
@@ -113,6 +129,7 @@ class Grid_World():
         self.cloud_actions = [-1, 0, 1]
         self.reward = 0
         self.manual = kwargs['manual']
+        self.sample_path = kwargs['sample_path']
 
         self.calc_wall_coords()
         self.createTiles()
@@ -123,7 +140,16 @@ class Grid_World():
     def find_board_coords(self, pos):
         x = pos[1]
         y = self.board_size[0] - pos[0] -1
+        # y = pos[1] #self.board_size[0] - pos[0] - 1
         return [x, y]
+
+    def find_board_coords_multi(self, pos):
+        result_goals = []
+        for element in pos:
+            x = element[1]
+            y = self.board_size[0] - element[0] -1
+            result_goals.append([x, y])
+        return result_goals
 
     def createTiles(self):
         # Create the Tiles
@@ -146,12 +172,14 @@ class Grid_World():
     def draw(self):
         # Draw the tiles.
         # - self is the Grid_World game
-        pos = self.find_board_coords(self.position)
-        goal = self.find_board_coords(self.goal_coord)
+        uav_pos = self.find_board_coords(self.position)
+        goals = self.find_board_coords_multi(self.goal_coord)
+        clouds = self.find_board_coords_multi(self.cloud_coords)
+        stations = self.find_board_coords_multi(self.station_coords)
         self.surface.fill(self.bgColor)
         for row in self.board:
             for tile in row:
-                tile.draw(pos, goal)
+                tile.draw(uav_pos, goals, clouds, stations)
 
     def draw_heat(self, pos):
         # print pos
@@ -181,8 +209,10 @@ class Grid_World():
         # If the game is not over,  draw the board
         # and return False.
         # - self is the TTT game
-
-        if self.position == self.goal_coord:
+        self.step_cloud()
+        print(self.cloud_coords)
+        # self.step(0)
+        if self.battery == 0:
             return True
         else:
             self.draw()
@@ -215,28 +245,34 @@ class Grid_World():
 
         step_back = self.position
 
+        self.battery -= 1
+
         if action == 0:   # Action Up
-            print("Move Right")
+            # print("Move Up")
             if [x+1, y] not in self.wall_coords and x+1 < self.board_size[0]:
                 self.position = [x+1, y]
+            # if x+1 > self.board_size[0]:
+            #     self.position = [x-1, y]
 
         elif action == 1:   # Action Down
-            print("Move Left")
+            # print("Move Down")
             if [x-1, y] not in self.wall_coords and x-1 >= 0:
                 self.position = [x-1, y]
 
         elif action == 2:   # Action Right
-            print("Move Up")
+            # print("Move Right")
             if [x, y+1] not in self.wall_coords and y+1 < self.board_size[1]:
                 self.position = [x, y+1]
 
         elif action == 3:   # Action Left
-            print("Move Down")
+            # print("Move Left")
             if [x, y-1] not in self.wall_coords and y-1 >= 0:
                 self.position = [x, y-1]
 
+        if self.position in self.station_coords:
+            self.battery = self.battery_cap
         # Reward definition
-        self.get_reward(step_back, self.position)
+        # self.get_reward(step_back, self.position)
 
         #print action_dict[str(action)], self.position
     def get_reward(self, step_back, pos):
@@ -303,6 +339,7 @@ if __name__ == "__main__":
     pygame.display.update()
 
     # Loop forever
+    i = 0
     while True:
         # Handle events
         for event in pygame.event.get():
@@ -312,11 +349,14 @@ if __name__ == "__main__":
                 # Handle additional events
 
         # Update and draw objects for next frame
-        board.step(1)
+        board.step(board.sample_path[i])
         gameOver = board.update()
         if gameOver:
             break
 
+        i = i+1
+        if i == len(board.sample_path):
+            i = 0
         # Refresh the display
         pygame.display.update()
 
