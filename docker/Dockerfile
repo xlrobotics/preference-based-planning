@@ -34,3 +34,4 @@ RUN pip3 install numpy matplotlib pyzmq pydot networkx pygraphviz pytest
 RUN apt-get install -y --no-install-recommends ca-certificates
 RUN update-ca-certificates
 RUN pip3 install scipy pygame 
+RUN pip3 install pyyaml 
