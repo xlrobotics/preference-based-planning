@@ -18,7 +18,7 @@ start: prefltl_formula
 ?ltl_formula:               ltl_or
 ?ltl_or:                    ltl_and (OR ltl_and)*
 ?ltl_and:                   ltl_until (AND ltl_until)*
-?ltl_until:                 ltl_unaryop (RELEASE ltl_unaryop)*
+?ltl_until:                 ltl_unaryop (UNTIL ltl_unaryop)*
 
 
 ?ltl_unaryop:               ltl_always
