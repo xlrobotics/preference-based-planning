@@ -1,4 +1,5 @@
-from lark import Lark
+from lark import Lark, Transformer, Visitor, Tree
+from lark.tree import Tree
 
 # Parser for scLTL + Preference operators (>, >=, ~). 
 #   scLTL restricts negation to only APs.
@@ -36,12 +37,12 @@ start: prefltl_formula
 ?ltl_not:                   NOT ltl_atom
 ?ltl_wrapped:               ltl_atom
             |               LSEPARATOR ltl_formula RSEPARATOR
-?ltl_atom:                  ltl_symbol
+?ltl_atom:                  ltl_ap
             |               ltl_true
             |               ltl_false
 
 
-ltl_symbol:                 AP_NAME
+ltl_ap:                     AP_NAME
 ltl_true:                   TRUE  
 ltl_false:                  FALSE
 
@@ -56,9 +57,9 @@ ltl_false:                  FALSE
             |               prefltl_wrapped
 
 ?prefltl_wrapped:           LSEPARATOR pref_formula RSEPARATOR
-?prefltl_strictpref:        ltl_formula (STRICTPREF ltl_formula)+
-?prefltl_nonstrictpref:     ltl_formula (NONSTRICTPREF ltl_formula)+
-?prefltl_indifference:      ltl_formula (INDIFFERENCE ltl_formula)+
+?prefltl_strictpref:        ltl_formula STRICTPREF ltl_formula
+?prefltl_nonstrictpref:     ltl_formula NONSTRICTPREF ltl_formula
+?prefltl_indifference:      ltl_formula INDIFFERENCE ltl_formula
 
 
 AP_NAME:                    /[a-z][a-z0-9_]*/
@@ -83,10 +84,161 @@ INDIFFERENCE:               "~"
 %ignore /\s+/
 """
 
-parser = Lark(grammar, parser='lalr')
+
+class PrefScLTLVisitor(Visitor):
+    def __init__(self):
+        self.strf = ""
+
+    def ltl_ap(self, tree):
+        print(f"(v) ltl_ap: {tree}")
+        self.strf += str(tree.children[0])
+        return tree.children[0]
+    
+    def ltl_eventually(self, tree):
+        print(f"(v) ltl_eventually: {tree}")
+        self.strf = f"F({self.strf})" 
+        return tree.children[0]
+    
+    def ltl_always(self, tree):
+        print(f"(v) ltl_always: {tree}")
+        self.strf = f"G({self.strf})" 
+        return tree.children[0]
+    
+
+class StrictPreference:
+    def __init__(self, lformula, rformula):
+        self.lformula = lformula
+        self.rformula = rformula
+
+    def __str__(self) -> str:
+        return f"{self.lformula} > {self.rformula}"
+
+
+class NonStrictPreference:
+    def __init__(self, lformula, rformula):
+        self.lformula = lformula
+        self.rformula = rformula
+
+    def __str__(self) -> str:
+        return f"{self.lformula} >= {self.rformula}"
+
+
+class IndifferentPreference:
+    def __init__(self, lformula, rformula):
+        self.lformula = lformula
+        self.rformula = rformula
+
+    def __str__(self) -> str:
+        return f"{self.lformula} ~ {self.rformula}"
+
+
+class PrefOr:
+    def __init__(self, lpref, rpref) -> None:
+        self.lpref = lpref
+        self.rpref = rpref
+
+
+class PrefAnd:
+    def __init__(self, lpref, rpref) -> None:
+        self.lpref = lpref
+        self.rpref = rpref
+
+
+class ScLTLFormula:
+    def __init__(self, scltlformula) -> None:
+        self.formula = scltlformula
+    
+    def __str__(self) -> str:
+        return str(self.formula)
+
+
+class PrefScLTLTransformer(Transformer):
+
+    def start(self, args):
+        """Entry point."""
+        print(f"(t) start: {args}")
+        if type(args[0]) in [StrictPreference, NonStrictPreference, IndifferentPreference, PrefAnd, PrefOr]:
+            return args[0]
+        elif type(args[0]) == Tree:
+            visitor = PrefScLTLVisitor()
+            _ = visitor.visit(args[0])
+            return ScLTLFormula(visitor.strf)
+        else:
+            raise ValueError("Trouble")
+
+    def prefltl_strictpref(self, args):
+        """ Parse strict preferences. """
+        lvisitor = PrefScLTLVisitor()
+        rvisitor = PrefScLTLVisitor()
+
+        lhs = lvisitor.visit(args[0])
+        rhs = rvisitor.visit(args[2])
+        
+        print(f"(t) prefltl_strictpref: {lvisitor.strf} > {rvisitor.strf}")
+        return StrictPreference(ScLTLFormula(lvisitor.strf), ScLTLFormula(rvisitor.strf))
+
+    def prefltl_nonstrictpref(self, args):
+        """ Parse strict preferences. """
+        lvisitor = PrefScLTLVisitor()
+        rvisitor = PrefScLTLVisitor()
+
+        lhs = lvisitor.visit(args[0])
+        rhs = rvisitor.visit(args[2])
+        
+        print(f"(t) prefltl_strictpref: {lvisitor.strf} >= {rvisitor.strf}")
+        return NonStrictPreference(ScLTLFormula(lvisitor.strf), ScLTLFormula(rvisitor.strf))
+    
+    def prefltl_indifference(self, args):
+        """ Parse strict preferences. """
+        lvisitor = PrefScLTLVisitor()
+        rvisitor = PrefScLTLVisitor()
+
+        lhs = lvisitor.visit(args[0])
+        rhs = rvisitor.visit(args[2])
+        
+        print(f"(t) prefltl_strictpref: {lvisitor.strf} ~ {rvisitor.strf}")
+        return NonStrictPreference(ScLTLFormula(lvisitor.strf), ScLTLFormula(rvisitor.strf))
+    
+    def pref_or(self, args):
+        ltransformer = PrefScLTLTransformer()
+        rtransformer = PrefScLTLTransformer()
+
+        lhs = ltransformer.transform(args[0])
+        rhs = rtransformer.transform(args[2])
+        
+        print(f"(t) prefltl_strictpref: {lhs} ~ {rhs}")
+        return PrefOr(lhs, rhs)
+
+    def pref_and(self, args):
+        ltransformer = PrefScLTLTransformer()
+        rtransformer = PrefScLTLTransformer()
+
+        lhs = ltransformer.transform(args[0])
+        rhs = rtransformer.transform(args[2])
+        
+        print(f"(t) prefltl_strictpref: {lhs} ~ {rhs}")
+        return PrefAnd(lhs, rhs)
+
+
+class PrefScLTLParser:
+    """PrefScLTL Parser class."""
+
+    def __init__(self):
+        """Initialize."""
+        self._transformer = PrefScLTLTransformer()
+        self._parser = Lark(grammar, parser="lalr")
+
+    def __call__(self, text):
+        """Call."""
+        tree = self._parser.parse(text)
+        formula = self._transformer.transform(tree)
+        return formula
+
+
 
 if __name__ == "__main__":
-    # parser = PLParser()
+    # parser = Lark(grammar, parser='lalr')
+    parser = PrefScLTLParser()
     while True:
         try:
             s = input("prefltl > ")
@@ -94,5 +246,5 @@ if __name__ == "__main__":
             break
         if not s:
             continue
-        result = parser.parse(s)
-        print(result)
+        result = parser(s)
+        print(f"final result: {result} of type {type(result)}")
