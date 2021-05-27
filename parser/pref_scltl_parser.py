@@ -246,7 +246,7 @@ class PrefScLTLTransformer(Transformer):
         rhs = rvisitor.visit(args[2])
         
         # print(f"(t) prefltl_strictpref: {lvisitor.strf} ~ {rvisitor.strf}")
-        return NonStrictPreference(ScLTLFormula(lvisitor.strf), ScLTLFormula(rvisitor.strf))
+        return IndifferentPreference(ScLTLFormula(lvisitor.strf), ScLTLFormula(rvisitor.strf))
     
     def pref_or(self, args):
         ltransformer = PrefScLTLTransformer()
