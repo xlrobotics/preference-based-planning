@@ -95,37 +95,37 @@ class PrefScLTLVisitor(Visitor):
         self.strf = ""
 
     def ltl_ap(self, tree):
-        print(f"(v) ltl_ap: {tree}")
+        # print(f"(v) ltl_ap: {tree}")
         self.strf += str(tree.children[0])
         return tree.children[0]
     
     def ltl_eventually(self, tree):
-        print(f"(v) ltl_eventually: {tree}")
+        # print(f"(v) ltl_eventually: {tree}")
         self.strf = f"F({self.strf})" 
         return tree.children[0]
     
     def ltl_always(self, tree):
-        print(f"(v) ltl_always: {tree}")
+        # print(f"(v) ltl_always: {tree}")
         self.strf = f"G({self.strf})" 
         return tree.children[0]
     
     def ltl_next(self, tree):
-        print(f"(v) ltl_next: {tree}")
+        # print(f"(v) ltl_next: {tree}")
         self.strf = f"X({self.strf})" 
         return tree.children[0]
     
     def ltl_not(self, tree):
-        print(f"(v) ltl_not: {tree}")
+        # print(f"(v) ltl_not: {tree}")
         self.strf = f"!({self.strf})" 
         return tree.children[0]
     
     def ltl_wrapped(self, tree):
-        print(f"(v) ltl_wrapped: {tree}")
+        # print(f"(v) ltl_wrapped: {tree}")
         self.strf = f"({self.strf})" 
         return tree.children[1]
     
     def ltl_or(self, tree):
-        print(f"(v) ltl_or: {tree}")
+        # print(f"(v) ltl_or: {tree}")
         lvisitor = PrefScLTLVisitor()
         rvisitor = PrefScLTLVisitor()
         lvisitor.visit(tree.children[0])
@@ -134,7 +134,7 @@ class PrefScLTLVisitor(Visitor):
         return tree.children[1]
     
     def ltl_and(self, tree):
-        print(f"(v) ltl_wrapped: {tree}")
+        # print(f"(v) ltl_wrapped: {tree}")
         lvisitor = PrefScLTLVisitor()
         rvisitor = PrefScLTLVisitor()
         lvisitor.visit(tree.children[0])
@@ -143,7 +143,7 @@ class PrefScLTLVisitor(Visitor):
         return tree.children[1]
     
     def ltl_until(self, tree):
-        print(f"(v) ltl_wrapped: {tree}")
+        # print(f"(v) ltl_wrapped: {tree}")
         lvisitor = PrefScLTLVisitor()
         rvisitor = PrefScLTLVisitor()
         lvisitor.visit(tree.children[0])
@@ -205,7 +205,7 @@ class PrefScLTLTransformer(Transformer):
 
     def start(self, args):
         """Entry point."""
-        print(f"(t) start: {args}")
+        # print(f"(t) start: {args}")
         if type(args[0]) in [StrictPreference, NonStrictPreference, IndifferentPreference, PrefAnd, PrefOr]:
             return args[0]
         elif type(args[0]) == Tree:
@@ -223,7 +223,7 @@ class PrefScLTLTransformer(Transformer):
         lhs = lvisitor.visit(args[0])
         rhs = rvisitor.visit(args[2])
         
-        print(f"(t) prefltl_strictpref: {lvisitor.strf} > {rvisitor.strf}")
+        # print(f"(t) prefltl_strictpref: {lvisitor.strf} > {rvisitor.strf}")
         return StrictPreference(ScLTLFormula(lvisitor.strf), ScLTLFormula(rvisitor.strf))
 
     def prefltl_nonstrictpref(self, args):
@@ -234,7 +234,7 @@ class PrefScLTLTransformer(Transformer):
         lhs = lvisitor.visit(args[0])
         rhs = rvisitor.visit(args[2])
         
-        print(f"(t) prefltl_strictpref: {lvisitor.strf} >= {rvisitor.strf}")
+        # print(f"(t) prefltl_strictpref: {lvisitor.strf} >= {rvisitor.strf}")
         return NonStrictPreference(ScLTLFormula(lvisitor.strf), ScLTLFormula(rvisitor.strf))
     
     def prefltl_indifference(self, args):
@@ -245,7 +245,7 @@ class PrefScLTLTransformer(Transformer):
         lhs = lvisitor.visit(args[0])
         rhs = rvisitor.visit(args[2])
         
-        print(f"(t) prefltl_strictpref: {lvisitor.strf} ~ {rvisitor.strf}")
+        # print(f"(t) prefltl_strictpref: {lvisitor.strf} ~ {rvisitor.strf}")
         return NonStrictPreference(ScLTLFormula(lvisitor.strf), ScLTLFormula(rvisitor.strf))
     
     def pref_or(self, args):
@@ -255,7 +255,7 @@ class PrefScLTLTransformer(Transformer):
         lhs = ltransformer.transform(args[0])
         rhs = rtransformer.transform(args[2])
         
-        print(f"(t) prefltl_strictpref: {lhs} ~ {rhs}")
+        # print(f"(t) prefltl_strictpref: {lhs} ~ {rhs}")
         return PrefOr(lhs, rhs)
 
     def pref_and(self, args):
@@ -265,7 +265,7 @@ class PrefScLTLTransformer(Transformer):
         lhs = ltransformer.transform(args[0])
         rhs = rtransformer.transform(args[2])
         
-        print(f"(t) prefltl_strictpref: {lhs} ~ {rhs}")
+        # print(f"(t) prefltl_strictpref: {lhs} ~ {rhs}")
         return PrefAnd(lhs, rhs)
 
 
@@ -298,4 +298,4 @@ if __name__ == "__main__":
         if s == "exit":
             break
         result = parser(s)
-        print(f"final result: {result} of type {type(result)}")
+        print(f"Formula: {result} of type {result.__class__.__name__}")
