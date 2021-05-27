@@ -193,9 +193,12 @@ class PrefAnd:
 
 class ScLTLFormula:
     def __init__(self, scltlformula) -> None:
-        self.formula = spot.formula(scltlformula)
-        if not spot.mp_class(self.formula, "v") in ["guarantee", "guarantee safety", "bottom"]:
-            raise TypeError(f"spot.mp_class(scltlformula) = '{spot.mp_class(self.formula, 'v')}'. Expected 'guarantee'.")
+        if spot:
+            self.formula = spot.formula(scltlformula)
+            if not spot.mp_class(self.formula, "v") in ["guarantee", "guarantee safety", "bottom"]:
+                raise TypeError(f"spot.mp_class(scltlformula) = '{spot.mp_class(self.formula, 'v')}'. Expected 'guarantee'.")
+        else: 
+            self.formula = scltlformula
     
     def __str__(self) -> str:
         return str(self.formula)
