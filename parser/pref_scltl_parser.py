@@ -1,6 +1,11 @@
 from lark import Lark, Transformer, Visitor, Tree
 from lark.tree import Tree
 
+try:
+    import spot
+except ImportError as e:
+    spot = None
+
 # Parser for scLTL + Preference operators (>, >=, ~). 
 #   scLTL restricts negation to only APs.
 #   Negation of preferences is not allowed. 
@@ -188,7 +193,9 @@ class PrefAnd:
 
 class ScLTLFormula:
     def __init__(self, scltlformula) -> None:
-        self.formula = scltlformula
+        self.formula = spot.formula(scltlformula)
+        if not spot.mp_class(self.formula, "v") in ["guarantee", "guarantee safety", "bottom"]:
+            raise TypeError(f"spot.mp_class(scltlformula) = '{spot.mp_class(self.formula, 'v')}'. Expected 'guarantee'.")
     
     def __str__(self) -> str:
         return str(self.formula)
@@ -288,5 +295,7 @@ if __name__ == "__main__":
             break
         if not s:
             continue
+        if s == "exit":
+            break
         result = parser(s)
         print(f"final result: {result} of type {type(result)}")
