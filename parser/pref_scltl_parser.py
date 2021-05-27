@@ -104,7 +104,49 @@ class PrefScLTLVisitor(Visitor):
         self.strf = f"G({self.strf})" 
         return tree.children[0]
     
+    def ltl_next(self, tree):
+        print(f"(v) ltl_next: {tree}")
+        self.strf = f"X({self.strf})" 
+        return tree.children[0]
+    
+    def ltl_not(self, tree):
+        print(f"(v) ltl_not: {tree}")
+        self.strf = f"!({self.strf})" 
+        return tree.children[0]
+    
+    def ltl_wrapped(self, tree):
+        print(f"(v) ltl_wrapped: {tree}")
+        self.strf = f"({self.strf})" 
+        return tree.children[1]
+    
+    def ltl_or(self, tree):
+        print(f"(v) ltl_or: {tree}")
+        lvisitor = PrefScLTLVisitor()
+        rvisitor = PrefScLTLVisitor()
+        lvisitor.visit(tree.children[0])
+        rvisitor.visit(tree.children[2])
+        self.strf = f"({lvisitor.strf}) | ({rvisitor.strf})" 
+        return tree.children[1]
+    
+    def ltl_and(self, tree):
+        print(f"(v) ltl_wrapped: {tree}")
+        lvisitor = PrefScLTLVisitor()
+        rvisitor = PrefScLTLVisitor()
+        lvisitor.visit(tree.children[0])
+        rvisitor.visit(tree.children[2])
+        self.strf = f"({lvisitor.strf}) & ({rvisitor.strf})" 
+        return tree.children[1]
+    
+    def ltl_until(self, tree):
+        print(f"(v) ltl_wrapped: {tree}")
+        lvisitor = PrefScLTLVisitor()
+        rvisitor = PrefScLTLVisitor()
+        lvisitor.visit(tree.children[0])
+        rvisitor.visit(tree.children[2])
+        self.strf = f"({lvisitor.strf}) U ({rvisitor.strf})" 
+        return tree.children[1]
 
+    
 class StrictPreference:
     def __init__(self, lformula, rformula):
         self.lformula = lformula
