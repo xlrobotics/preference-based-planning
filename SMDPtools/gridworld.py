@@ -113,12 +113,18 @@ class Grid_World():
         self.wall_coords = []
 
         self.start_coord = list(kwargs['UAV']['init_state'])
+        self.trapped = False
         self.goal_coord = list(kwargs['targets'])
         self.position = self.start_coord[:]
         self.battery = kwargs['UAV']['battery']
         self.battery_cap = self.battery
 
+        self.rendering = kwargs['rendering']
+
         self.station_coords = list(kwargs['stations'])
+        self.station_coords_tuple = []
+        for element in self.station_coords:
+            self.station_coords_tuple.append(tuple(element))
 
         self.cloud_coords = kwargs['clouds']['positions']
         self.cloud_dynamics = kwargs['clouds']['dynamics']
@@ -131,8 +137,29 @@ class Grid_World():
         self.manual = kwargs['manual']
         self.sample_path = kwargs['sample_path']
 
+
         self.calc_wall_coords()
         self.createTiles()
+
+    def get_state_space(self, dtype="list"):
+        state_set = []
+        for i in range(self.board_size[0]):
+            for j in range(self.board_size[1]):
+                for c1_i in range(self.board_size[0]):
+                    for c2_i in range(self.board_size[0]):
+                        for b in range(self.battery_cap):
+                            if dtype=="list":
+                                state_set.append([i, j, c1_i, c2_i, b]) # each cloud only moves in one axis
+                            elif dtype=="tuple":
+                                state_set.append(tuple([i, j, c1_i, c2_i, b]))  # each cloud only moves in one axis
+        return state_set
+
+    def get_current_state(self):
+        temp = self.position[:]
+        for element in self.cloud_coords:
+            temp = temp + element
+        temp = temp + self.battery
+        return temp
 
     def calc_wall_coords(self):
         self.board_wall_coords = [[self.board_size[0] - x - 1, y] for x, y in self.wall_coords]
@@ -242,6 +269,10 @@ class Grid_World():
 
     def step(self, action):
         x, y = self.position
+        if self.position in self.cloud_coords:
+            self.trapped = True
+        else:
+            self.trapped = False
 
         step_back = self.position
 
@@ -249,24 +280,24 @@ class Grid_World():
 
         if action == 0:   # Action Up
             # print("Move Up")
-            if [x+1, y] not in self.wall_coords and x+1 < self.board_size[0]:
+            if [x+1, y] not in self.wall_coords and x+1 < self.board_size[0] and not self.trapped:
                 self.position = [x+1, y]
             # if x+1 > self.board_size[0]:
             #     self.position = [x-1, y]
 
         elif action == 1:   # Action Down
             # print("Move Down")
-            if [x-1, y] not in self.wall_coords and x-1 >= 0:
+            if [x-1, y] not in self.wall_coords and x-1 >= 0 and not self.trapped:
                 self.position = [x-1, y]
 
         elif action == 2:   # Action Right
             # print("Move Right")
-            if [x, y+1] not in self.wall_coords and y+1 < self.board_size[1]:
+            if [x, y+1] not in self.wall_coords and y+1 < self.board_size[1] and not self.trapped:
                 self.position = [x, y+1]
 
         elif action == 3:   # Action Left
             # print("Move Left")
-            if [x, y-1] not in self.wall_coords and y-1 >= 0:
+            if [x, y-1] not in self.wall_coords and y-1 >= 0 and not self.trapped:
                 self.position = [x, y-1]
 
         if self.position in self.station_coords:
