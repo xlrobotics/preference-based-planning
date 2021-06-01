@@ -162,6 +162,8 @@ class MDP:
         self.success = []
 
         self.A = {"N":(1, 0), "S":(-1, 0), "W":(0, -1), "E":(0, 1), "stay":(0, 0)} # actions for grid world
+        self.A_simple = ['l', 'r'] # 0 means stay
+        self.simple_trans = {}
 
         self.V, self.V_ = {}, {} # value function and V_ denotes memory of the value function in last iteration
         self.init_V, self.init_V_ = {}, {} # store initial value function
@@ -209,7 +211,14 @@ class MDP:
 
     # Tool: a small math tool for the state space cross product
     def crossproduct(self, a, b):
-        return [(tuple(y), x) for x in a for y in b]
+        cross_states = [(tuple(y), x) for x in a for y in b]
+        print(cross_states)
+        return cross_states
+
+    def crossproduct2(self, a, b):
+        cross_states = [(y, x) for x in a for y in b]
+        print(cross_states)
+        return cross_states
 
     # API: Generate composed options
     def option_factory(self):
@@ -457,8 +466,11 @@ class MDP:
 
         result.originS = dcp(filtered_S)
 
-        new_success = self.crossproduct(dfa.final_states, filtered_S)
-        new_unsafe = self.crossproduct(dfa.sink_states, filtered_S)
+        # new_success = self.crossproduct(dfa.final_states, filtered_S)
+        # new_unsafe = self.crossproduct(dfa.sink_states, filtered_S)
+
+        new_success = self.crossproduct2(list(dfa.final_states), filtered_S)
+        new_unsafe = self.crossproduct2(list(dfa.sink_states), filtered_S)
 
         result.success = new_success[:]
 
@@ -492,16 +504,16 @@ class MDP:
                             q_ = dfa.state_transitions[label, q] # p[0]
 
                         new_s_ = (p[2], q_)
-                        if q == q_:
+                        if q == q_: # dfa state equals to transition state after reaching the labelled state in mdp
                             # if len(mdp.L[p[2]]) == 1:
                             if new_s_ not in new_P[new_s, new_a]:
                                 new_P[new_s, new_a][new_s_] = mdp.P[p]
                             # else:
                             #     print (p)
                         else:
-                            new_s__ = (p[2], q)
+                            # new_s__ = (p[2], q)
                             new_P[new_s, new_a][new_s_] = mdp.P[p]
-                            new_P[new_s, new_a][new_s__] = 0.0
+                            # new_P[new_s, new_a][new_s__] = 0.0
 
 
                         if tuple(new_s_) not in true_new_s:
@@ -642,6 +654,46 @@ class MDP:
 
                 if list(s_) in self.originS: # only based on cloud dynamics
                     self.P[s, a, s_] = 1/3 * 1/3
+
+        return
+
+    def set_P_simple(self): # add cloud dynamics to the transition matrix
+        # self.simple_trans[0]
+        self.P = {}
+        self.P[0, 'l', 5] = 1
+        self.P[0, 'l', 4] = 0
+        self.P[0, 'r', 4] = 1
+        self.P[0, 'r', 5] = 0
+
+        self.P[1, 'l', 3] = 1
+        self.P[1, 'l', 0] = 0
+        self.P[1, 'r', 0] = 1
+        self.P[1, 'r', 3] = 0
+
+        self.P[2, 'l', 0] = 0.6
+        self.P[2, 'l', 3] = 0.4
+        self.P[2, 'r', 0] = 0.4
+        self.P[2, 'r', 3] = 0.6
+
+        self.P[3, 'l', 2] = 1
+        self.P[3, 'l', 1] = 0
+        self.P[3, 'r', 1] = 1
+        self.P[3, 'r', 2] = 0
+
+        self.P[4, 'l', 2] = 0.9
+        self.P[4, 'l', 6] = 0.1
+        self.P[4, 'r', 2] = 0
+        self.P[4, 'r', 6] = 1
+
+        self.P[5, 'l', 1] = 0
+        self.P[5, 'l', 6] = 1
+        self.P[5, 'r', 6] = 0.1
+        self.P[5, 'r', 1] = 0.9
+
+        self.P[6, 'l', 6] = 1
+        self.P[6, 'l', 3] = 0
+        self.P[6, 'r', 6] = 0.9
+        self.P[6, 'r', 3] = 0.1
 
         return
 
