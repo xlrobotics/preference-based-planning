@@ -52,7 +52,13 @@ class DFA:
         self.transition_tree = {}
         self.state_info = {}
         self.g_unsafe = ''
+        self.final_transitions = []
+        self.pref_labels = {}
         # self.actions = []
+
+    def pref_labeling(self, q, pref_node):
+        if q not in self.pref_labels:
+            self.pref_labels[q] = pref_node
 
     def clear(self):
         self.state_transitions = {}
@@ -80,6 +86,9 @@ class DFA:
         if next_state is None:
             next_state = state
         else:
+            if state != next_state and next_state in self.final_states:
+                if input_symbol not in self.final_transitions:
+                    self.final_transitions.append(input_symbol)
             self.state_transitions[(input_symbol, state)] = next_state
             if state != next_state:
                 if state not in self.transition_tree:

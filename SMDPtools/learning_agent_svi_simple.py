@@ -53,10 +53,10 @@ if __name__ == "__main__":
 
     A = Action('A')
     B = Action('B')  # set as an globally unsafe obstacle
-    station = Action('e')
+    C = Action('C')
     phi = Action('phi')
     whole = Action('whole')
-    sinks = Action('sink') # set of all 0 energy states
+    sinks = Action('failure') # set of all 0 energy states
     trial_number = 50
 
     #TODO: sample state space
@@ -67,14 +67,15 @@ if __name__ == "__main__":
     q_s = {}
     q_s[A.v] = []
     q_s[B.v] = []
-    q_s[station.v] = []
+    q_s[C.v] = []
     q_s[sinks.v] = []
 
     q_s[A.v].append(1)
     q_s[B.v].append(2)
-    q_s[station.v].append(0)
+    q_s[C.v].append(0)
+    q_s[sinks.v].append(6)
 
-    q_s[phi.v] = list(set(S) - set(q_s[A.v] + q_s[B.v] + q_s[station.v] + q_s[sinks.v]))
+    q_s[phi.v] = list(set(S) - set(q_s[A.v] + q_s[B.v] + q_s[C.v] + q_s[sinks.v]))
     q_s[whole.v] = list(set(S))
 
     for s in S:
@@ -83,18 +84,18 @@ if __name__ == "__main__":
             s_q[s].append(A.v)
         if s in q_s[B.v] and B.v not in s_q[s]:
             s_q[s].append(B.v)
-        if s in q_s[station.v] and station.v not in s_q[s]:
-            s_q[s] = [station.v]
+        if s in q_s[C.v] and C.v not in s_q[s]:
+            s_q[s] = [C.v]
         if s in q_s[sinks.v] and sinks.v not in s_q[s]:
-            s_q[s].append(sinks.v)
+            s_q[s] = [sinks.v]
         if s in q_s[phi.v] and phi.v not in s_q[s]:
             s_q[s].append(phi.v)
 
     mdp = MDP()
     mdp.set_S(S)
-    mdp.set_WallCord(mdp.add_wall(q_s[sinks.v]))
-    # mdp.set_stations(board.station_coords)
-    # mdp.set_stations(board.goal_coord)
+    # mdp.set_WallCord(mdp.add_wall(q_s[sinks.v]))
+    # mdp.set_Cs(board.C_coords)
+    # mdp.set_Cs(board.goal_coord)
     # mdp.set_full_tank(board.battery_cap)
     # mdp.set_P()
     mdp.set_P_simple()
@@ -102,12 +103,17 @@ if __name__ == "__main__":
     mdp.set_Exp(q_s)  # L^-1: inverse of L (L: Q -> S), e.g. self.Exp['g1'] = (2, 3)
     mdp.set_Size(4, 4)
 
-    dfa = DFA(0, [A, B, station, sinks, phi, whole]) # sink state here means energy used up outside of the station
-    dfa.set_final(5)
-    dfa.set_final(6)
-    dfa.set_final(7)
-    dfa.set_final(8)
-    dfa.set_sink(9)
+    dfa = DFA(0, [A, B, C, sinks, phi, whole]) # sink state here means energy used up outside of the C
+    dfa.set_final(1)
+    dfa.set_final(2)
+    dfa.set_final(3)
+    dfa.set_final(4)
+    dfa.set_sink(5)
+
+    dfa.pref_labeling(1, 'I') # using rome number
+    dfa.pref_labeling(3, 'I')
+    dfa.pref_labeling(2, 'II')
+    dfa.pref_labeling(4, 'III')
 
     sink = list(dfa.sink_states)[0]
 
@@ -116,25 +122,39 @@ if __name__ == "__main__":
         if i < sink:
             dfa.add_transition(sinks.display(), i, sink)
 
+    dfa.add_transition(A.display(), 1, 1)
+    dfa.add_transition(A.display(), 2, 2)
+    dfa.add_transition(A.display(), 3, 3)
+    dfa.add_transition(A.display(), 4, 4)
+
+    dfa.add_transition(B.display(), 2, 2)
+    dfa.add_transition(B.display(), 3, 3)
+    dfa.add_transition(B.display(), 4, 4)
+
+    dfa.add_transition(C.display(), 0, 0)
+    dfa.add_transition(C.display(), 1, 1)
+    dfa.add_transition(C.display(), 2, 2)
+    dfa.add_transition(C.display(), 4, 4)
+
     dfa.add_transition(whole.display(), sink, sink)
 
     dfa.add_transition(A.display(), 0, 1)
     dfa.add_transition(B.display(), 0, 3)
-    dfa.add_transition(station.display(), 0, 8)
+    # dfa.add_transition(C.display(), 0, 8)
 
     dfa.add_transition(B.display(), 1, 2)
-    dfa.add_transition(station.display(), 1, 7)
+    # dfa.add_transition(C.display(), 1, 7)
 
-    dfa.add_transition(station.display(), 2, 5)
+    # dfa.add_transition(C.display(), 2, 5)
 
-    dfa.add_transition(A.display(), 3, 4)
-    dfa.add_transition(station.display(), 3, 7)
+    dfa.add_transition(C.display(), 3, 4)
+    # dfa.add_transition(C.display(), 3, 7)
 
-    dfa.add_transition(station.display(), 4, 6)
+    # dfa.add_transition(C.display(), 4, 6)
 
     dfa.toDot("DFA")
     dfa.prune_eff_transition()
-    dfa.g_unsafe = 'sink'
+    # dfa.g_unsafe = 'sink'
 
     curve = {}
     result = mdp.product(dfa, mdp)

@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 # %matplotlib.inline
 # import seaborn as sns
 import pickle
-from pandas import *
+# from pandas import *
 from copy import deepcopy as dcp
 
 # # plotly dependencies
@@ -460,17 +460,24 @@ class MDP:
 
         filtered_S = []
         for s in mdp.S: #new_S
-            # if s not in mdp.wall_cord: # new_wall
-            #     filtered_S.append(s)
+            if mdp.L[s][0] != 'failure': # new_wall
+                filtered_S.append(s)
             filtered_S.append(s) # no need to filter here
 
         result.originS = dcp(filtered_S)
+        #TODO: initial states of the product mdp should not contain final states of dfa
+        initial_states = [dfa.initial_state]
+
 
         # new_success = self.crossproduct(dfa.final_states, filtered_S)
         # new_unsafe = self.crossproduct(dfa.sink_states, filtered_S)
 
-        new_success = self.crossproduct2(list(dfa.final_states), filtered_S)
-        new_unsafe = self.crossproduct2(list(dfa.sink_states), filtered_S)
+        new_success = self.crossproduct2(list(dfa.final_states-dfa.sink_states), filtered_S)
+        new_fail = self.crossproduct2(list(dfa.sink_states), filtered_S)
+        # new_unsafe = self.crossproduct2(list(dfa.sink_states), filtered_S)
+        # for s in mdp.S:
+        #     if mdp.L[s] not in dfa.final_transitions:
+        #         new_success.
 
         result.success = new_success[:]
 
@@ -479,7 +486,8 @@ class MDP:
 
         true_new_s = []
 
-        sink = "fail"
+        sink = "pref node"
+        fail = "fail"
 
         total = len(mdp.P.keys())
         counter = 0
@@ -487,7 +495,23 @@ class MDP:
             counter += 1
             print("processing key:", p, counter,"/", total," done")
 
+            if p[0]==1 and p[2]==0:
+                print(p)
+                pass
+
             for q in dfa.states:
+                if p[0]==1 and p[2]==0 and q == 1:
+                    pass
+
+                if q not in dfa.final_states and mdp.L[p[0]][0] in dfa.final_transitions: # initial state not allowed with final states of dfa
+                    continue
+
+                if q in dfa.sink_states and mdp.L[p[0]][0] != 'failure': # cannot get out after entering sink state
+                    continue
+
+                if mdp.L[p[0]][0] == 'failure' and q not in dfa.sink_states:
+                    continue
+
                 new_s = (p[0], q)
                 new_a = p[1]
                 if (new_s, new_a) not in new_P:
@@ -497,31 +521,38 @@ class MDP:
                 new_V_[new_s] = 0
                 new_R[new_s, new_a] = 0
 
+
+
                 # TODO: fix L multi mapping issue
-                if new_s not in new_success: #(mdp.L[p[2]].display(), q) in dfa.state_transitions
-                    for label in mdp.L[p[2]]:
-                        if tuple([label, q]) in dfa.state_transitions.keys():
-                            q_ = dfa.state_transitions[label, q] # p[0]
+                # if new_s not in new_success: #(mdp.L[p[2]].display(), q) in dfa.state_transitions
+                for label in mdp.L[p[2]]:
+                    if tuple([label, q]) in dfa.state_transitions.keys():
+                        q_ = dfa.state_transitions[label, q] # p[0]
 
                         new_s_ = (p[2], q_)
                         if q == q_: # dfa state equals to transition state after reaching the labelled state in mdp
-                            # if len(mdp.L[p[2]]) == 1:
+                                # if len(mdp.L[p[2]]) == 1:
                             if new_s_ not in new_P[new_s, new_a]:
                                 new_P[new_s, new_a][new_s_] = mdp.P[p]
-                            # else:
-                            #     print (p)
+                                # else:
+                                #     print (p)
                         else:
-                            # new_s__ = (p[2], q)
+                                # new_s__ = (p[2], q)
                             new_P[new_s, new_a][new_s_] = mdp.P[p]
-                            # new_P[new_s, new_a][new_s__] = 0.0
+                                # new_P[new_s, new_a][new_s__] = 0.0
 
 
                         if tuple(new_s_) not in true_new_s:
                             true_new_s.append(tuple(new_s_))
 
-                else:
-                    new_s_ = sink
-                    new_P[new_s, new_a][new_s_] = 1
+                        if new_s_ in new_success and new_P[new_s, new_a][new_s_]>0: # tagging, debug step, delete after check correct
+                            new_P[new_s, new_a][sink] = dfa.pref_labels[new_s_[1]]
+
+                        if new_s_ in new_fail and new_P[new_s, new_a][new_s_]>0: # tagging, debug step, delete after check correct
+                            new_P[new_s, new_a][fail] = 1
+
+                if new_s in new_fail:
+                    new_P[new_s, new_a][fail] = 1
 
                 if q in dfa.final_states and q not in dfa.sink_states:
                     # new_R[new_s, new_a] = 0
@@ -531,10 +562,10 @@ class MDP:
                 if new_s not in true_new_s:
                     true_new_s.append(tuple(new_s))
 
-        # evaluate new_P
-        for key in new_P.keys():
-            if abs(sum(new_P[key].values()) - 1) > 0.01:
-                print ("error:", key, new_P[key])
+        # evaluate new_P debugging
+        # for key in new_P.keys():
+        #     if abs(sum(new_P[key].values()) - 1) > 0.01:
+        #         print ("error:", key, new_P[key])
 
         result.set_S(true_new_s)
 
@@ -546,7 +577,7 @@ class MDP:
         result.V_ = dcp(new_V_)
         result.dfa = dcp(dfa)
         result.mdp = dcp(mdp)
-        result.unsafe = dcp(new_unsafe)
+        # result.unsafe = dcp(new_unsafe)
         result.set_Size(self.gridSize[0], self.gridSize[1])
 
         result.init_V, result.init_V_ = dcp(new_V), dcp(new_V_)
@@ -692,8 +723,8 @@ class MDP:
 
         self.P[6, 'l', 6] = 1
         self.P[6, 'l', 3] = 0
-        self.P[6, 'r', 6] = 0.9
-        self.P[6, 'r', 3] = 0.1
+        self.P[6, 'r', 6] = 1
+        self.P[6, 'r', 3] = 0
 
         return
 
