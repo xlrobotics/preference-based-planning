@@ -149,6 +149,7 @@ class MDP:
         self.ID = 'root' # MDP id to identify the layer of an MDP, set as 'root' if it's original MDP,
 
         self.S = [] # state space e.g. [[0,0],[0,1]...]
+        self.init_S = []
         self.originS = []
         self.wall_cord = [] # wall state space, e.g. if state space is [[1,1]], wall is [[1,2], [2,1], [1,0], [0,1]]
         self.L = {} # labeling function
@@ -177,6 +178,8 @@ class MDP:
 
         self.P = {} # 1 step transition probabilities
         self.H = {}
+        self.ASF = {}
+        self.ASR = {}
 
         self.Pi, self.Pi_ = {}, {} # policy and memory of last iteration policy
         self.Pi_opt, self.Pi_opt_ = {}, {}  # policy and memory of last iteration policy
@@ -220,107 +223,6 @@ class MDP:
         print(cross_states)
         return cross_states
 
-    # API: Generate composed options
-    def option_factory(self):
-        # # print   self.Exp
-        s_index = self.dfa.state_info
-        print (s_index)
-        for q in s_index:
-
-            id = s_index[q]['safe']
-            # # print  id, len(id)
-
-            # if id == [] or len(id) > 1:
-            #     continue
-            if id == []:
-                continue
-
-            ctype = 'disjunction'
-            sample = self.AOpt[id[0]]
-
-            ID = q
-            optid = tuple(id), ctype
-            self.Opt[ID] = MDP()
-
-            self.Opt[ID].id = optid
-            self.Opt[ID].plotKey = True
-            self.Opt[ID].S = self.originS
-            self.Opt[ID].R = sample.R
-            self.Opt[ID].P = sample.P
-
-            sumG = []
-            sumT = []
-            sumUnsafe = []
-            optList = []
-
-            for ap in id:
-                sumG += dcp(self.AOpt[ap].goal)
-                sumT += dcp(self.AOpt[ap].T)
-                sumUnsafe += dcp(self.AOpt[ap].unsafe)
-                optList.append(ap)
-
-
-            self.Opt[ID].goal = list(set(sumG))
-            self.Opt[ID].T = list(set(sumT))
-
-            # print  self.Opt[ID].T, self.Opt[ID].goal, self.Opt[ID].id
-
-            self.Opt[ID].unsafe = list(set(sumUnsafe))
-            self.Opt[ID].set_Size(self.gridSize[0], self.gridSize[1])
-
-            self.Opt[ID].V = self.option_composition(self.AOpt, self.originS, ctype, optList, self.tau)
-
-            self.Opt[ID].V_ = dcp(self.Opt[ID].V)
-
-            interruptid = s_index[q]['unsafe']
-            interruptions = []
-
-            for ap in interruptid:
-                interruptions += self.Exp[ap]
-
-            self.Opt[ID].interruptions = list(set(interruptions))
-
-            for s in self.Opt[ID].interruptions:
-                self.Opt[ID].V[tuple(s)] = 0.0
-            for s in self.Opt[ID].unsafe:
-                self.Opt[ID].V[tuple(s)] = 0.0
-            for s in self.Opt[ID].goal:
-                self.Opt[ID].V[tuple(s)] = 100.0
-
-            self.Opt[ID].SVI(self.INFTY)
-            # # print   "policy", ID, self.Opt[ID].Pi
-
-            self.Opt[ID].TransitionMatrix, self.Opt[ID].H = transition_matrix_(
-                self.Opt[ID].S,
-                self.Opt[ID].goal,
-                self.Opt[ID].unsafe,
-                self.Opt[ID].interruptions,
-                self.Opt[ID].gamma,
-                self.Opt[ID].P,
-                self.Opt[ID].Pi,
-                self.Opt[ID].V,
-                self.gridSize[0],
-                self.gridSize[1]
-            )
-
-            # # print  ID, self.Opt[ID].H
-    # Tool: Composing value functions of two options for conjunction or disjunction
-    def option_composition(self, AOpt, S, ctype, Opt_list, tau):
-        result = {}
-
-        if ctype == 'disjunction':
-            for state in S:
-                s = tuple(state)
-                result[s] = tau*np.log(sum([np.exp(AOpt[name].V[s]/tau) for name in Opt_list])) #/ len(Opt_list)
-
-        if ctype == 'conjunction':
-            tau *= -1.0
-            for state in S:
-                s = tuple(state)
-                result[s] = tau*np.log(sum([np.exp(AOpt[name].V[s]/tau) for name in Opt_list])) # / len(Opt_list)
-
-        return dcp(result)
-
     def simple_composition(self, Vlist, ctype):
         result = {}
         tau = 1.0
@@ -345,139 +247,70 @@ class MDP:
                     target[i], target[i+1] = target[i+1], target[i]
         return target
 
-    # API: Generate atomic options from decomposition algorithm
-    def option_generation(self, dfa, init={}):
+    # secondary API, called by def pos_reachability, used to return next reachable states with probability > 0
+    def nextStateSet(self, s, a):
+        next_set = []
+        if (s, a) not in self.P:
+            return set([])
 
-        goals = dcp(self.Exp)
-        del goals["phi"]
+        for key in self.P[s, a].keys():
+            if type(key) != str and self.P[s, a][key] > 0 and key not in next_set:
+                next_set.append(key)
+        return set(next_set)
 
-        delList = []
-        for exp in goals:
-            if exp not in dfa.effTS:
-                delList.append(exp)
+    # API return the ASR of the product mdp
+    def pos_reachability(self, F):
+        # almost sure reaching the set F.
+        # alg: compute the set of states from which the agent can stay with probability one, and has a positive probability of reaching F (in multiple steps).
+        X0 = set(self.S)
+        Y0 = set(F)
+        while True:
+            Y0 = set(F)
+            Y1 = Y0
+            while True:
+                for s in X0:
+                    for a in self.A_simple: # TODO: action_special is for the toy, for gridworld need to modify it
+                        reachableStates = self.nextStateSet(s,a)  # TODO: computing the next states that can be reached with probability >0.
 
-        unsafe_map = {}
-        for delExp in delList:
-            unsafe_map[delExp] = dcp(goals[delExp])
-            del goals[delExp]
-
-        filtered_S = []
-        # # # print   'wall', self.wall_cord
-        for s in self.S:  # new_S
-            if s not in self.wall_cord:  # new_wall
-                filtered_S.append(s)
-        print(goals)
-        AOpt = {}
-        if not init == {}:
-            AOpt = dcp(init)
-        # for qs in dfa.state_info.keys():
-        opstacles = set([])
-
-        #reschedule goals
-        goal_queue = self.bubble(list(goals.keys()))
-
-        for exp in goal_queue:
-            if exp in init:
-                continue
-
-            AOpt[exp] = MDP()
-            AOpt[exp].ID = exp
-            AOpt[exp].plotKey = True
-            # AOpt[exp].unsafe = self.crossproduct(dfa.sink_states, filtered_S)
-
-            AOpt[exp].set_S(filtered_S)
-            AOpt[exp].goal = dcp(goals[exp])
-            AOpt[exp].T = dcp(goals[exp])
-            AOpt[exp].T += self.Exp[dfa.g_unsafe]
-            AOpt[exp].unsafe = self.Exp[dfa.g_unsafe]
-            AOpt[exp].set_Size(self.gridSize[0], self.gridSize[1])
-
-            AOpt[exp].P = {}
-            for key in self.P:
-                pindex = tuple([key[0],key[1]])
-                if pindex not in AOpt[exp].P:
-                    AOpt[exp].P[pindex] = {}
-                AOpt[exp].P[pindex][key[2]] = self.P[key]
-
-            for s in filtered_S:
-                AOpt[exp].V[tuple(s)], AOpt[exp].V_[tuple(s)] = 0.0, 0.0
-            for goal in goals[exp]:
-                AOpt[exp].V[goal], AOpt[exp].V_[goal] = 100.0, 0.0
-
-            AOpt[exp].R = {}
-            for state in filtered_S:
-                s = tuple(state)
-                for a in self.A:
-                    if (s, a) in AOpt[exp].P:
-                        AOpt[exp].R[s, a] = 0
-            if '&' in exp:
-                ctype = 'conjunction'
-                optList = exp.split('&')
-                AOpt[exp].V = self.option_composition(AOpt, filtered_S, ctype, optList, self.tau)
-                AOpt[exp].V_ = dcp(AOpt[exp].V)
-                for s in AOpt[exp].interruptions:
-                    AOpt[exp].V[tuple(s)] = 0.0
-                for s in AOpt[exp].unsafe:
-                    AOpt[exp].V[tuple(s)] = 0.0
-                for s in AOpt[exp].goal:
-                    AOpt[exp].V[tuple(s)] = 100.0
-
-                AOpt[exp].SVI(self.INFTY)
-            elif '|' in exp:
-                ctype = 'disjunction'
-                optList = exp.split('|')
-                AOpt[exp].V = self.option_composition(AOpt, filtered_S, ctype, optList, self.tau)
-                AOpt[exp].V_ = dcp(AOpt[exp].V)
-                for s in AOpt[exp].interruptions:
-                    AOpt[exp].V[tuple(s)] = 0.0
-                for s in AOpt[exp].unsafe:
-                    AOpt[exp].V[tuple(s)] = 0.0
-                for s in AOpt[exp].goal:
-                    AOpt[exp].V[tuple(s)] = 100.0
-
-                AOpt[exp].SVI(self.INFTY)
-            else:
-                AOpt[exp].SVI(0.000001)
-            # # print  'atomic policy', exp, AOpt[exp].Pi
-            # AOpt[exp].draw_quiver(exp)
-        # generate conjunction
-        # for exp in goals:
-        #     if '-' not in exp:
-        #         continue
-        #     AOpt[exp] = MDP()
-        #     AOpt[exp].ID = exp
-        #     AOpt[exp].plotKey = True
-
-        return dcp(AOpt)
+                        # if reachableStates.issubset(X0) and reachableStates.intersect(Y1) != set([]):
+                        if reachableStates <= X0 and reachableStates and Y1 is not set([]):
+                            Y1.add(s)
+                            break
+                if Y1 == Y0:  # no state is added, reached the inner fixed point.
+                    break
+            if X0 != Y1: # shrinking X0
+                X0 = Y1
+            else:  # reach the outer fixed point.
+                break  # outer loop complete.
+        return X0
 
     # API: DFA * MDP product
     def product(self, dfa, mdp):
         result = MDP()
         result.Exp = dcp(mdp.Exp)
         result.L = self.L
-
         new_A = mdp.A
 
         filtered_S = []
-        for s in mdp.S: #new_S
-            if mdp.L[s][0] != 'failure': # new_wall
+        for s in mdp.S:  #new_S
+            if mdp.L[s][0] != 'failure' and s not in filtered_S: # new_wall
                 filtered_S.append(s)
-            filtered_S.append(s) # no need to filter here
+            # filtered_S.append(s) # no need to filter here
 
         result.originS = dcp(filtered_S)
-        #TODO: initial states of the product mdp should not contain final states of dfa
-        initial_states = [dfa.initial_state]
 
+        result.init_S = self.crossproduct2(list([dfa.initial_state]), mdp.Exp['phi'])
 
         # new_success = self.crossproduct(dfa.final_states, filtered_S)
         # new_unsafe = self.crossproduct(dfa.sink_states, filtered_S)
 
         new_success = self.crossproduct2(list(dfa.final_states-dfa.sink_states), filtered_S)
         new_fail = self.crossproduct2(list(dfa.sink_states), filtered_S)
-        # new_unsafe = self.crossproduct2(list(dfa.sink_states), filtered_S)
-        # for s in mdp.S:
-        #     if mdp.L[s] not in dfa.final_transitions:
-        #         new_success.
+
+        # calculate F states for each pref node:
+        for key in dfa.inv_pref_labels.keys():
+            if key not in result.ASF:
+                result.ASF[key] = result.crossproduct2(dfa.inv_pref_labels[key], filtered_S)
 
         result.success = new_success[:]
 
@@ -521,31 +354,22 @@ class MDP:
                 new_V_[new_s] = 0
                 new_R[new_s, new_a] = 0
 
-
-
-                # TODO: fix L multi mapping issue
-                # if new_s not in new_success: #(mdp.L[p[2]].display(), q) in dfa.state_transitions
                 for label in mdp.L[p[2]]:
                     if tuple([label, q]) in dfa.state_transitions.keys():
                         q_ = dfa.state_transitions[label, q] # p[0]
 
                         new_s_ = (p[2], q_)
                         if q == q_: # dfa state equals to transition state after reaching the labelled state in mdp
-                                # if len(mdp.L[p[2]]) == 1:
                             if new_s_ not in new_P[new_s, new_a]:
                                 new_P[new_s, new_a][new_s_] = mdp.P[p]
-                                # else:
-                                #     print (p)
                         else:
-                                # new_s__ = (p[2], q)
                             new_P[new_s, new_a][new_s_] = mdp.P[p]
-                                # new_P[new_s, new_a][new_s__] = 0.0
 
 
                         if tuple(new_s_) not in true_new_s:
                             true_new_s.append(tuple(new_s_))
 
-                        if new_s_ in new_success and new_P[new_s, new_a][new_s_]>0: # tagging, debug step, delete after check correct
+                        if new_s_ in new_success and new_P[new_s, new_a][new_s_]>0 and new_s_[1] in dfa.pref_labels: # tagging, debug step, delete after check correct
                             new_P[new_s, new_a][sink] = dfa.pref_labels[new_s_[1]]
 
                         if new_s_ in new_fail and new_P[new_s, new_a][new_s_]>0: # tagging, debug step, delete after check correct
@@ -555,17 +379,11 @@ class MDP:
                     new_P[new_s, new_a][fail] = 1
 
                 if q in dfa.final_states and q not in dfa.sink_states:
-                    # new_R[new_s, new_a] = 0
                     new_V[new_s] = 100.0
-                    # new_V_[new_s] = 0
 
                 if new_s not in true_new_s:
                     true_new_s.append(tuple(new_s))
 
-        # evaluate new_P debugging
-        # for key in new_P.keys():
-        #     if abs(sum(new_P[key].values()) - 1) > 0.01:
-        #         print ("error:", key, new_P[key])
 
         result.set_S(true_new_s)
 
@@ -582,6 +400,10 @@ class MDP:
 
         result.init_V, result.init_V_ = dcp(new_V), dcp(new_V_)
         result.init_R = dcp(new_R)
+
+        for key in result.ASF.keys():
+            if key not in result.ASR:
+                result.ASR[key] = result.pos_reachability(result.ASF[key])
 
         return result
 
@@ -687,6 +509,9 @@ class MDP:
                     self.P[s, a, s_] = 1/3 * 1/3
 
         return
+
+    def add_trans_P(self, s, a, s_, value):
+        self.P[s, a, s_] = value
 
     def set_P_simple(self): # add cloud dynamics to the transition matrix
         # self.simple_trans[0]
@@ -959,36 +784,6 @@ class MDP:
             it += 1
 
         return Pi
-
-    # def compute_divergence(self, Pi1, Pi2, S):
-    #
-    #     return KL
-    # DISCARD
-    '''
-    def testPolicy(self, ss, Policy, S, A, V, P, dfa, mdp):
-        cs = ss
-        cp = 1
-        # # print   "-----------------------------------------"
-        # # print   "start at:", cs, V[cs], "(objective value)"
-        while True:
-            act = Policy[cs]
-            ns = tuple(np.array(cs[0]) + np.array(A[act]))
-            nq = dfa.state_transitions[mdp.L[ns].display(), cs[1]]
-            cp *= P[cs, act][tuple([ns, nq])]
-
-            cs = tuple([ns, nq])
-    '''
-
-    # # DATA: save data
-    # def save_data(self):
-    #     graph_config = {}
-    #
-    #
-    #     output = open('graph_config.pkl', 'wb')
-    #     pickle.dump(graph_config, output)
-    #     output.close()
-    #     # print  (graph_config)
-    #     return
 
     def goal_probability(self, Pi, P, s_monitor, threshold):
         # hardmax evaluation with fixed policy till convergence, return specific state probability propagation as reference

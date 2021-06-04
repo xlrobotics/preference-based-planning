@@ -54,6 +54,7 @@ class DFA:
         self.g_unsafe = ''
         self.final_transitions = []
         self.pref_labels = {}
+        self.inv_pref_labels = {}
         # self.actions = []
 
     def pref_labeling(self, q, pref_node):
