@@ -279,7 +279,7 @@ class MDP:
                         reachableStates = self.nextStateSet(s, a)  # TODO: computing the next states that can be reached with probability >0.
 
                         # if reachableStates.issubset(X0) and reachableStates.intersect(Y1) != set([]):
-                        if reachableStates <= X0 and reachableStates and Y1 is not set([]):
+                        if reachableStates <= X0 and bool(reachableStates.intersection(Y1)):
                             Y1.add(s)
                             break
                 if Y1 == Y0:  # no state is added, reached the inner fixed point.
