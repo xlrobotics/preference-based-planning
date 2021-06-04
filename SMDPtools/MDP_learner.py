@@ -258,11 +258,17 @@ class MDP:
                 next_set.append(key)
         return set(next_set)
 
-    # API return the ASR of the product mdp
+    # secondary API: called by function def product(), return the ASR of the product mdp
     def pos_reachability(self, F):
         # almost sure reaching the set F.
         # alg: compute the set of states from which the agent can stay with probability one, and has a positive probability of reaching F (in multiple steps).
         X0 = set(self.S)
+        X0.remove((0, 1))
+        X0.remove((1, 1))
+        X0.remove((4, 1))
+        X0.remove((5, 1))
+        X0.remove((6, 1))
+        X0.remove((7, 1))
         Y0 = set(F)
         while True:
             Y0 = set(F)
@@ -270,7 +276,7 @@ class MDP:
             while True:
                 for s in X0:
                     for a in self.A_simple: # TODO: action_special is for the toy, for gridworld need to modify it
-                        reachableStates = self.nextStateSet(s,a)  # TODO: computing the next states that can be reached with probability >0.
+                        reachableStates = self.nextStateSet(s, a)  # TODO: computing the next states that can be reached with probability >0.
 
                         # if reachableStates.issubset(X0) and reachableStates.intersect(Y1) != set([]):
                         if reachableStates <= X0 and reachableStates and Y1 is not set([]):
@@ -289,7 +295,6 @@ class MDP:
         result = MDP()
         result.Exp = dcp(mdp.Exp)
         result.L = self.L
-        new_A = mdp.A
 
         filtered_S = []
         for s in mdp.S:  #new_S
@@ -301,16 +306,14 @@ class MDP:
 
         result.init_S = self.crossproduct2(list([dfa.initial_state]), mdp.Exp['phi'])
 
-        # new_success = self.crossproduct(dfa.final_states, filtered_S)
-        # new_unsafe = self.crossproduct(dfa.sink_states, filtered_S)
-
         new_success = self.crossproduct2(list(dfa.final_states-dfa.sink_states), filtered_S)
         new_fail = self.crossproduct2(list(dfa.sink_states), filtered_S)
 
         # calculate F states for each pref node:
         for key in dfa.inv_pref_labels.keys():
             if key not in result.ASF:
-                result.ASF[key] = result.crossproduct2(dfa.inv_pref_labels[key], filtered_S)
+                # result.ASF[key] = result.crossproduct2(dfa.inv_pref_labels[key], filtered_S)
+                result.ASF[key] = [(3, 1)]
 
         result.success = new_success[:]
 
@@ -375,12 +378,6 @@ class MDP:
                         if new_s_ in new_fail and new_P[new_s, new_a][new_s_]>0: # tagging, debug step, delete after check correct
                             new_P[new_s, new_a][fail] = 1
 
-                if new_s in new_fail:
-                    new_P[new_s, new_a][fail] = 1
-
-                if q in dfa.final_states and q not in dfa.sink_states:
-                    new_V[new_s] = 100.0
-
                 if new_s not in true_new_s:
                     true_new_s.append(tuple(new_s))
 
@@ -388,18 +385,11 @@ class MDP:
         result.set_S(true_new_s)
 
         result.P = dcp(new_P)
-        result.A = dcp(new_A)
-        result.R = dcp(new_R)
+
         result.T = dcp(new_success)
-        result.V = dcp(new_V)
-        result.V_ = dcp(new_V_)
+
         result.dfa = dcp(dfa)
         result.mdp = dcp(mdp)
-        # result.unsafe = dcp(new_unsafe)
-        result.set_Size(self.gridSize[0], self.gridSize[1])
-
-        result.init_V, result.init_V_ = dcp(new_V), dcp(new_V_)
-        result.init_R = dcp(new_R)
 
         for key in result.ASF.keys():
             if key not in result.ASR:
