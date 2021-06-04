@@ -99,8 +99,11 @@ if __name__ == "__main__":
     mdp.add_trans_P(0, beta, 2, 1/3)
 
     mdp.add_trans_P(1, alpha, 1, 1/2)
-    mdp.add_trans_P(1, alpha, 2, 7 / 18)
-    mdp.add_trans_P(1, alpha, 3, 1 / 9)
+    # mdp.add_trans_P(1, alpha, 2, 7 / 18)
+    # mdp.add_trans_P(1, alpha, 3, 1 / 9)
+
+
+    mdp.add_trans_P(1, alpha, 3, 1 / 2)
 
     mdp.add_trans_P(2, alpha, 2, 1)
     mdp.add_trans_P(3, alpha, 3, 1)

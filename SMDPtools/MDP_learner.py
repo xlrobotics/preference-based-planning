@@ -259,22 +259,23 @@ class MDP:
         return set(next_set)
 
     # secondary API: called by function def product(), return the ASR of the product mdp
-    def pos_reachability(self, F):
+    def AS_reachability(self, F):
         # almost sure reaching the set F.
         # alg: compute the set of states from which the agent can stay with probability one, and has a positive probability of reaching F (in multiple steps).
         X0 = set(self.S)
-        X0.remove((0, 1))
-        X0.remove((1, 1))
-        X0.remove((4, 1))
-        X0.remove((5, 1))
-        X0.remove((6, 1))
-        X0.remove((7, 1))
-        Y0 = set(F)
+
+        counter = 0
+        print(X0)
         while True:
             Y0 = set(F)
-            Y1 = Y0
+            Y1 = dcp(Y0)
+            print("iteration: ", counter)
+            counter+=1
             while True:
+                Y0 = dcp(Y1)
+                print("UPDATED: ", Y1, "|||", Y0)
                 for s in X0:
+                    # print("UPDATED: ", Y1)
                     for a in self.A_simple: # TODO: action_special is for the toy, for gridworld need to modify it
                         reachableStates = self.nextStateSet(s, a)  # TODO: computing the next states that can be reached with probability >0.
 
@@ -283,9 +284,12 @@ class MDP:
                             Y1.add(s)
                             break
                 if Y1 == Y0:  # no state is added, reached the inner fixed point.
+                    print("Y1", Y1)
                     break
+                print("Y1", Y1)
             if X0 != Y1: # shrinking X0
                 X0 = Y1
+                print("X0", X0)
             else:  # reach the outer fixed point.
                 break  # outer loop complete.
         return X0
@@ -393,7 +397,7 @@ class MDP:
 
         for key in result.ASF.keys():
             if key not in result.ASR:
-                result.ASR[key] = result.pos_reachability(result.ASF[key])
+                result.ASR[key] = result.AS_reachability(result.ASF[key])
 
         return result
 
