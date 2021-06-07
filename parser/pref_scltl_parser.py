@@ -662,11 +662,11 @@ class PrefDFA:
                     pass
 
         print()        
-        print ("Preference DFA:")
+        print ("Preference Graph:")
         print ("States: ")
         for st in self.prefGraph.nodes(data=True):
             print("\t", st[0], ": ", st[1]["states"])
-        print ("\t", f"Edges: {list(self.prefGraph.edges())}")
+        print (f"Edges: {list(self.prefGraph.edges())}")
         
   
 class ScLTLFormula:
