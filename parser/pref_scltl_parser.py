@@ -706,8 +706,25 @@ class ScLTLFormula:
                 alphabet.add(str(spot.bdd_format_formula(bdict, edge.cond)))
                 if edge.acc.count() > 0:
                     accept.append(int(edge.dst))
-        # print(edges)
-        return DFA(states, alphabet, lambda s, f: edges[s][f], init_state, accept)
+
+        # Complete the transition function. Find sink state.
+        sink = None
+        for src, edge in edges.items():
+            if len(edge.items()) == 1 and "1" in edge.keys() and edge["1"] == src and not (src in accept):      
+                sink = src
+
+        # If does not exist
+        if src is None:
+            states.append(len(states))
+            sink = states[-1]
+
+        def delta(state, char):
+            try:
+                return edges[s][f]
+            except: 
+                return sink
+
+        return DFA(states, alphabet, delta, init_state, accept)
         
 
 class StrictPreference:
@@ -730,8 +747,8 @@ class StrictPreference:
             next_dfa1 = dfa1.delta(state_pair[0], char)
             next_dfa2 = dfa2.delta(state_pair[1], char)
             return (next_dfa1, next_dfa2)
+
         alphabet = copy.deepcopy(set.union(dfa1.alphabet, dfa2.alphabet))
-        # print(alphabet)
 
         # Construct preference graph for acceptance
         #   Structure: G = (V, E)
