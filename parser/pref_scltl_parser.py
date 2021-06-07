@@ -97,7 +97,7 @@ INDIFFERENCE:               "~"
 
 class DFA:
     """This class represents a deterministic finite automaton."""
-    def __init__(self, states, alphabet, delta, start, accepts):
+    def __init__(self, states, alphabet, delta, start, accepts, sink):
         """The inputs to the class are as follows:
          - states: An iterable containing the states of the DFA. States must be immutable.
          - alphabet: An iterable containing the symbols in the DFA's alphabet. Symbols must be immutable.
@@ -122,6 +122,7 @@ class DFA:
         self.accepts = set(accepts)
         self.alphabet = set(alphabet)
         self.current_state = start
+        self.sink = sink
 
     #
     # Administrative functions:
@@ -136,6 +137,7 @@ class DFA:
         print ("Alphabet:", self.alphabet)
         print ("Starting state:", self.start)
         print ("Accepting states:", self.accepts)
+        print ("Sink state:", self.sink)
         print()
         print ("States:", self.states)
         print ("Transition function:")
@@ -720,11 +722,11 @@ class ScLTLFormula:
 
         def delta(state, char):
             try:
-                return edges[s][f]
+                return edges[state][char]
             except: 
                 return sink
 
-        return DFA(states, alphabet, delta, init_state, accept)
+        return DFA(states, alphabet, delta, init_state, accept, sink)
         
 
 class StrictPreference:
