@@ -7,11 +7,12 @@ from DFA import Action
 
 from gridworld import Tile, Grid_World
 # from q_learner import Q_learning
-from MDP_learner import MDP
+from MDP_learner_backup import MDP
 import pygame, sys, time, random
 from pygame.locals import *
 
 import yaml
+import pickle
 
 import matplotlib.pyplot as plt
 # from matplotlib.axes import Axes as ax
@@ -21,6 +22,35 @@ def get_features(pos):
 
 def decode_features(features):
     return [features/board_size[0], features - board_size[0]*(features/board_size[0]) ]
+
+def inv_dict(target):
+    result = {}
+    for key, value in target.items():
+        if value not in result:
+            result[value] = [key]
+        else:
+            if key not in result[value]:
+                result[value].append(key)
+    return result
+
+def inv_dict2(target):
+    result = {}
+    for key, value in target.items():
+        # if len(value) == 1:
+        #     print(value)
+        #     if value[0] not in result:
+        #         result[value] = [key]
+        #     else:
+        #         if key not in result[value]:
+        #             result[value].append(key)
+        # elif len(value) > 1:
+        for element in value:
+            if element not in result:
+                result[element] = [key]
+            else:
+                if key not in result[element]:
+                    result[element].append(key)
+    return result
 
 
 if __name__ == "__main__":
@@ -74,10 +104,12 @@ if __name__ == "__main__":
     for c1_i in range(board.board_size[0]):
         for c2_i in range(board.board_size[0]):
             for b in range(board.battery_cap):
-                q_s[A.v].append(tuple(board.goal_coord[0]+[c1_i, c2_i, b]))
-                q_s[B.v].append(tuple(board.goal_coord[1]+[c1_i, c2_i, b]))
-                q_s[C.v].append(tuple(board.goal_coord[2]+[c1_i, c2_i, b]))
-                q_s[station.v].append(tuple(board.station_coords_tuple[:]+[c1_i, c2_i, b]))
+                if b > 0:
+                    q_s[A.v].append(tuple(board.goal_coord[0]+[c1_i, c2_i, b]))
+                    q_s[B.v].append(tuple(board.goal_coord[1]+[c1_i, c2_i, b]))
+                    q_s[C.v].append(tuple(board.goal_coord[2]+[c1_i, c2_i, b]))
+                for station_coord in board.station_coords:
+                    q_s[station.v].append(tuple(station_coord+[c1_i, c2_i, b]))
 
     impossible_states = []
     for i in range(board.board_size[0]):
@@ -108,6 +140,7 @@ if __name__ == "__main__":
         if s in q_s[phi.v] and phi.v not in s_q[s]:
             s_q[s].append(phi.v)
 
+    # mdp = MDP(transition_file="prod_MDP_gridworld")
     mdp = MDP()
     mdp.set_S(states)
     mdp.set_WallCord(mdp.add_wall(q_s[sinks.v]))
@@ -128,14 +161,44 @@ if __name__ == "__main__":
     dfa.set_final(13)
     dfa.set_sink(14)
 
+    dfa.pref_labeling(8, 'I')
+    dfa.pref_labeling(9, 'II')
+    dfa.pref_labeling(10, 'III')
+    dfa.pref_labeling(11, 'IV')
+    dfa.pref_labeling(12, 'V')
+    dfa.pref_labeling(13, 'VI')
+
+    dfa.add_pref_trans('VI', 'V')
+    dfa.add_pref_trans('V', 'IV')
+    dfa.add_pref_trans('V', 'II')
+
+    dfa.add_pref_trans('VI', 'V')
+    dfa.add_pref_trans('II', 'III')
+    dfa.add_pref_trans('IV', 'I')
+    dfa.add_pref_trans('III', 'I')
+
+    dfa.inv_pref_labels = inv_dict(dfa.pref_labels)
+    dfa.inv_pref_trans = inv_dict2(dfa.pref_trans)
+
     sink = list(dfa.sink_states)[0]
 
     for i in range(sink+1):
         dfa.add_transition(phi.display(), i, i)
         if i < sink:
             dfa.add_transition(sinks.display(), i, sink)
+        if i >= 8 and i < sink:
+            dfa.add_transition(phi.display(), i, i)
+            dfa.add_transition(station.display(), i, i)
+            dfa.add_transition(A.display(), i, i)
+            dfa.add_transition(B.display(), i, i)
+            dfa.add_transition(C.display(), i, i)
 
-    dfa.add_transition(whole.display(), sink, sink)
+    # dfa.add_transition(whole.display(), sink, sink)
+    dfa.add_transition(phi.display(), sink, sink)
+    dfa.add_transition(station.display(), sink, sink)
+    dfa.add_transition(A.display(), sink, sink)
+    dfa.add_transition(B.display(), sink, sink)
+    dfa.add_transition(C.display(), sink, sink)
 
     dfa.add_transition(A.display(), 0, 1)
     dfa.add_transition(B.display(), 0, 2)
@@ -162,6 +225,24 @@ if __name__ == "__main__":
     dfa.add_transition(station.display(), 6, 11)
     dfa.add_transition(station.display(), 7, 8)
 
+    # self loop transitions
+    dfa.add_transition(A.display(), 1, 1)
+    dfa.add_transition(B.display(), 2, 2)
+    dfa.add_transition(C.display(), 3, 3)
+
+    dfa.add_transition(A.display(), 4, 4)
+    dfa.add_transition(B.display(), 4, 4)
+
+    dfa.add_transition(A.display(), 5, 5)
+    dfa.add_transition(C.display(), 5, 5)
+
+    dfa.add_transition(B.display(), 6, 6)
+    dfa.add_transition(C.display(), 6, 6)
+
+    dfa.add_transition(A.display(), 7, 7)
+    dfa.add_transition(B.display(), 7, 7)
+    dfa.add_transition(C.display(), 7, 7)
+
     dfa.toDot("DFA")
     dfa.prune_eff_transition()
     dfa.g_unsafe = 'sink'
@@ -169,60 +250,16 @@ if __name__ == "__main__":
     curve = {}
     result = mdp.product(dfa, mdp)
     result.plotKey = False
-    curve['action'] = result.SVI(0.001)
+    # curve['action'] = result.SVI(0.001)
 
-    # setup action based SVI agent
-    # agent = SVI(alpha=0.5, gamma=0.9, lmbda=0.0, epsilon=0.1, n=n, num_actions=4, room=4)
-    # agent.set_S()
-    # # agent.set_P()
-    # agent.set_goal(board.goal_coord)
-    # agent.set_WallCord(board.wall_coords)
-    # agent.set_P()
-    #
-    # blocks = agent.NB_initiation()
-    #
-    # room_agent = {}
-    # room_path = {}
-    #
-    # room_path = agent.get_RoomPath()
-    # # print room_path
-    #
-    # # encapsulate room information into room object, also known as option for higher level agent
-    # for key in room_path.keys():
-    #     # print key
-    #     room_agent[key] = SVI(alpha=0.5, gamma=0.9, lmbda=0.0, epsilon=0.1, n=n, num_actions=4, room=1)
-    #     room_agent[key].set_S(blocks[key[0]]["inner"]+blocks[key[0]]["wall_cords"])
-    #
-    #     room_agent[key].set_goal(list(room_path[key]))
-    #     room_agent[key].set_WallCord(blocks[key[0]]["wall_cords"])
-    #     room_agent[key].set_P()
-    #
-    #     room_agent[key].init_V()
-    #     # room_agent[key].init_Policy()
-    #     # room_agent[key].plot("room"+str(key[0]))
-    #     room_agent[key].SVI(threshold)
-    #
-    #     room_agent[key].transition_matrix()
-    #
-    #     # room_agent[key].plot(key[0]+"to"+key[1])
-    #
-    #     agent.add_Opt(key, room_agent[key])
-    #
-    # # run option_svi
-    # agent.init_V()
-    # agent.init_Policy()
-    # agent.SVI(threshold, "Option")
-    #
-    # agent.init_V()
-    # agent.init_Policy()
-    # agent.Ifplot = True
-    # agent.SVI(threshold)
-    # # agent.init_V()
-    #
-    # agent.plot_curve(agent.action_diff, agent.hybrid_diff,  "compare diff")
-    # agent.plot_curve(agent.action_val, agent.hybrid_val, "compare val")
-    # agent.plot_curve(agent.action_pi_diff, agent.hybrid_pi_diff, "compare pi")
+    with open("prod_MDP_gridworld", 'wb') as pkl_file:
+        pickle.dump(result, pkl_file)
+    # curve['action'] = result.SVI(0.001)
 
+    # with open("prod_MDP_simple2", 'r', encoding="utf-8") as yaml_file:
+    #     # The FullLoader parameter handles the conversion from YAML
+    #     # scalar values to Python the dictionary format
+    #     saved_prod_space = yaml.load(yaml_file, Loader=yaml.FullLoader)
 
 
 
