@@ -13,6 +13,7 @@ from pygame.locals import *
 
 import yaml
 import pickle
+import json
 
 import matplotlib.pyplot as plt
 # from matplotlib.axes import Axes as ax
@@ -140,7 +141,7 @@ if __name__ == "__main__":
         if s in q_s[phi.v] and phi.v not in s_q[s]:
             s_q[s].append(phi.v)
 
-    # mdp = MDP(transition_file="prod_MDP_gridworld")
+    # mdp = MDP(transition_file="prod_MDP_gridworld.pkl")
     mdp = MDP()
     mdp.set_S(states)
     mdp.set_WallCord(mdp.add_wall(q_s[sinks.v]))
@@ -252,7 +253,10 @@ if __name__ == "__main__":
     result.plotKey = False
     # curve['action'] = result.SVI(0.001)
 
-    with open("prod_MDP_gridworld", 'wb') as pkl_file:
+    # with open("prod_MDP_gridworld.json", 'wb') as json_file: # TODO: change to json
+    #     json.dump(result, json_file)
+
+    with open("prod_MDP_gridworld.pkl", 'wb') as pkl_file: #pkl
         pickle.dump(result, pkl_file)
     # curve['action'] = result.SVI(0.001)
 

@@ -10,6 +10,7 @@ import pickle
 # from pandas import *
 from copy import deepcopy as dcp
 import yaml
+import json
 
 # # plotly dependencies
 # import plotly.plotly as py
@@ -190,6 +191,7 @@ class MDP:
         self.H = {}
         self.ASF = {}
         self.ASR = {}
+        self.Pref_order = []
 
         self.Pi, self.Pi_ = {}, {} # policy and memory of last iteration policy
         self.Pi_opt, self.Pi_opt_ = {}, {}  # policy and memory of last iteration policy
@@ -355,8 +357,15 @@ class MDP:
                     visited.append(neighbour)
                     queue.append(neighbour)
 
+    def get_vector_V(self, s): #TODO: add the function here
+        result = {}
+        for key in self.dfa.inv_pref_labels.keys():
+            if key not in result:
+                result[key] = self.vector_V[key][s]
+        return result
+
     def init_ASR_V(self, s):
-        # for key in self.ASR.keys():
+
         visited = []  # List to keep track of visited nodes.
         queue = []  # Initialize a queue
         for key in self.dfa.inv_pref_labels.keys():
@@ -366,18 +375,30 @@ class MDP:
 
         while queue:
             i = queue.pop(0)
-            print(i, end=" ")
+            # print(i, end=" ")
+            # print(s, i, visited, queue)
             if s in self.ASR[i]: # start from mostly preferred node in the graph (top), e.g. node "I" - q=8
                 self.vector_V[i][s] = 1
-                for j in self.dfa.inv_pref_trans[i]:
-                    if self.vector_V[j][s] == 1:
-                        self.vector_V[i][s] = 0
-                        break
+                if i in self.dfa.pref_trans:
+                    for j in self.dfa.pref_trans[i]:
+                        if s in self.vector_V[j] and self.vector_V[j][s] == 1 and i not in self.dfa.pref_trans[j]: # j in i and i in j means i,j are equivalent
+                            self.vector_V[i][s] = 0
+                            break
 
-            for child in self.dfa.inv_pref_trans[i]:
-                if child not in visited:
-                    visited.append(child)
-                    queue.append(child)
+                    # no matter i is 1 or 0
+                    if i in self.dfa.inv_pref_trans:
+                        for k in self.dfa.inv_pref_trans[i]: # check if there were less preferred nodes visited already due to the topology
+                            if s in self.vector_V[k] and self.vector_V[k][s] == 1 and i not in self.dfa.inv_pref_trans[k] and self.vector_V[k][s] == 1: # j in i and i in j means i,j are equivalent
+                                self.vector_V[k][s] = 0
+            else:
+                self.vector_V[i][s] = 0
+
+            if i in self.dfa.inv_pref_trans:
+                for child in self.dfa.inv_pref_trans[i]:
+                    # print(child, visited)
+                    if child not in visited:
+                        visited.append(child)
+                        queue.append(child)
 
 
 
@@ -430,6 +451,10 @@ class MDP:
         if len(self.transition_file) == 0:
             for p in mdp.P.keys():
                 counter += 1
+
+                # if counter == 100:
+                #     break
+
                 print("processing key:", p, counter,"/", total," done")
 
                 if p[0]==1 and p[2]==0:
@@ -497,8 +522,8 @@ class MDP:
                 #     if s not in result.V[key]:
                 #         result.V[key][s] = 0
 
-        for s in result.S:
-            result.init_ASR_V(s)
+        # for s in result.S:
+        #     result.init_ASR_V(s)
 
 
         return result
