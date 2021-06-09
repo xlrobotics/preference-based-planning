@@ -1,0 +1,6 @@
+
+venv/
+
+.idea/
+
+SMDPtools/__pycache__/
