@@ -2,7 +2,7 @@ import yaml
 import pickle
 import json
 from MDP_learner_backup import MDP
-
+from copy import deepcopy
 
 IMPROVED = "improved"
 
@@ -102,6 +102,77 @@ def construct_improvement_mdp(mdp):
     imdp.P = ndict
 
     return imdp
+
+
+def spi_strategy(imdp, asw_strategy):
+    """
+    Alg. 1 from draft.
+
+    imdp: improvement mdp.
+    asw_strategy: dict of almost-sure strategies for each Xi \in \mathcal{X}.
+        Structure of asw_strategy: {
+                                        "X1": {"v1": {a1, a2}, "v2": {a1}...},
+                                        "X2": {"v1": {a1, a2}, "v2": {a1}...},
+                                    }
+    """
+    normal_states = [v for v in imdp.S if v[1] != IMPROVED]
+    improved_states = [v for v in imdp.S if v[1] == IMPROVED]
+
+    visited = list()
+    queue = [v for v in improved_states]            # Helps identify which states have +ve probability of improvement.
+    level = {v: 0 for v in improved_states}         # Needed to construct SPI strategy.
+    pi = dict()
+
+    # Initialize SPI strategy for all states in imdp.
+    for v in imdp.S:
+        # Assuming imdp construction assigns same vector values to v and (v, IMPROVED)
+        val, seq = vector_value(imdp, v)        # Copy vector value information to imdp.
+        if 1 in val:
+            idx = val.index(1)                  # Choice of ASW strategy is arbitrary.
+            if v in normal_states:
+                pi[v] = asw_strategy[seq[idx]][v]
+            else:
+                pi[v] = asw_strategy[seq[idx]][v[0]]
+
+    # Iteratively synthesize SPI strategy
+    while len(queue) > 0:
+        v = queue.pop(0)
+        visited.append(v)
+        pred = set(imdp.predecessors(v)) - set.union(set(queue), set(visited))
+
+        # Each predecessor has positive probability to reach improved_states. Add it to queue.
+        for p in pred:
+            # Book keeping for levels
+            k = level[v]
+            level[p] = k + 1
+            # If predecessor is not visited or queued, then add it to queue.
+            if p not in queue and p not in visited:
+                queue.append(p)
+
+        # Design SPI strategy at current state: v.
+        if v in normal_states:
+            spi_actions = set()
+
+            # An enabled action a at state v is SPI action iff all successors satisfy at least one of 2 conditions:
+            #   (i) level of successor s is smaller than v
+            #   (ii) successor s and v are ASW in same objective Xi, for which vector-value(v) = 1.
+            for a in imdp.enabled_actions(v):
+                successors = imdp.successors(v, a)
+                for s in successors:
+                    vec_s, _ = vector_value(imdp, s)
+                    vec_v, _ = vector_value(imdp, v)
+                    cond1 = True in [vec_s[i] == vec_v[i] for i in range(len(vec_v))]
+                    cond2 = level[s] < level[v]
+                    if cond1 or cond2:
+                        spi_actions.add(a)
+
+            # If spi actions are available, update them for both v and (v, IMPROVED) states.
+            # Else, pi[v] = pi[(v, IMPROVED)] = ASW(Xi) ... where ASW(Xi) is already initialized above.
+            if len(spi_actions) > 0:
+                pi[v] = spi_actions
+                pi[(v, IMPROVED)] = spi_actions
+
+    return pi
 
 
 if __name__ == '__main__':
