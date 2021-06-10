@@ -125,8 +125,8 @@ def spi_strategy(imdp, asw_strategy):
 
     # Initialize SPI strategy for all states in imdp.
     for v in imdp.S:
-        # Assuming imdp construction assigns same vector values to v and (v, IMPROVED)
-        val, seq = vector_value(imdp, v)        # Copy vector value information to imdp.
+        # TODO: Assuming imdp construction assigns same vector values to v and (v, IMPROVED)
+        val, seq = vector_value(imdp, v)        # TODO: Copy vector value information to imdp.
         if 1 in val:
             idx = val.index(1)                  # Choice of ASW strategy is arbitrary.
             if v in normal_states:
@@ -138,7 +138,7 @@ def spi_strategy(imdp, asw_strategy):
     while len(queue) > 0:
         v = queue.pop(0)
         visited.append(v)
-        pred = set(imdp.predecessors(v)) - set.union(set(queue), set(visited))
+        pred = set(imdp.predecessors(v)) - set.union(set(queue), set(visited))      # TODO: predecessor function needed.
 
         # Each predecessor has positive probability to reach improved_states. Add it to queue.
         for p in pred:
@@ -156,8 +156,8 @@ def spi_strategy(imdp, asw_strategy):
             # An enabled action a at state v is SPI action iff all successors satisfy at least one of 2 conditions:
             #   (i) level of successor s is smaller than v
             #   (ii) successor s and v are ASW in same objective Xi, for which vector-value(v) = 1.
-            for a in imdp.enabled_actions(v):
-                successors = imdp.successors(v, a)
+            for a in imdp.enabled_actions(v):           # TODO: enabled_actions function needed.
+                successors = imdp.successors(v, a)      # TODO: predecessor function needed.
                 for s in successors:
                     vec_s, _ = vector_value(imdp, s)
                     vec_v, _ = vector_value(imdp, v)
