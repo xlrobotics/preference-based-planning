@@ -215,7 +215,7 @@ def calc_asw_pi(mdp):
         for v in mdp.ASR[pref_st]:
             for a in mdp.enabled_actions(v):
                 successors = mdp.successors(v, a)
-                if set.issubset(successors, set(mdp.ASR[pref_st])):
+                if set.issubset(set(successors), set(mdp.ASR[pref_st])):
                     if v not in asw_strategy[pref_st]:
                         asw_strategy[pref_st][v] = set()
                     asw_strategy[pref_st][v].add(a)
