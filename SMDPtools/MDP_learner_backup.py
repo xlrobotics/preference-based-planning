@@ -342,20 +342,36 @@ class MDP:
                 break  # outer loop complete.
         return X0
 
-    def bfs(self, visited, graph, node):
-        visited = []  # List to keep track of visited nodes.
-        queue = []  # Initialize a queue
-        visited.append(node)
-        queue.append(node)
+    def predecessors(self, v): # v as state
+        result = set()
+        for key in self.P:
+            if v in self.P[key] and self.P[key][v] > 0:
+                result.add(key[0])
 
-        while queue:
-            s = queue.pop(0)
-            print(s, end=" ")
+        return result
 
-            for neighbour in graph[s]:
-                if neighbour not in visited:
-                    visited.append(neighbour)
-                    queue.append(neighbour)
+    def successors(self, v, a): # v as state, a as action
+        result = set()
+        if len(self.P[tuple(v), a]):
+            for v_ in self.P[tuple(v), a]:
+                if type(v_) == tuple and self.P[tuple(v), a][v_] > 0:
+                    result.add(v_)
+
+        return list(result)
+
+    def enabled_actions(self, v): # v as a state
+        result = set()
+        for a in self.A:
+            flag = False
+            if tuple(tuple(v), a) in self.P:
+                for v_ in self.P[tuple(v), a]:
+                    if type(v_) == tuple and self.P[tuple(v), a][v_] >= 0:
+                        flag = True
+                        break
+            if flag:
+                result.add(a)
+
+        return result
 
     def get_vector_V(self, s): #TODO: add the function here
         result = {}
