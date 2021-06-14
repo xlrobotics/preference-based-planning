@@ -81,7 +81,7 @@ def construct_improvement_mdp(mdp):
             if not ((state, act), IMPROVED) in ndict:
                 ndict[((state, act), IMPROVED)] = dict()
 
-            # FIXME: Xuan said 'fail' state is for debugging.
+            # Xuan said 'fail' state is for debugging.
             if isinstance(state, str) or isinstance(succ_state, str):
                 continue
 
@@ -99,13 +99,13 @@ def construct_improvement_mdp(mdp):
             else:
                 pass  # Do not add such an edge.
 
-    # FIXME: Copy any relevant attributes from original MDP to improvement MDP. (done)
+    # Copy any relevant attributes from original MDP to improvement MDP. (done)
     imdp = MDP()
     imdp.S = states
     imdp.A = mdp.A
     imdp.P = ndict
 
-    imdp.vector_V = dcp(mdp.vector_V)  # FIXME: double imdp v vector with improvement tag (done)
+    imdp.vector_V = dcp(mdp.vector_V)  # double imdp v vector with improvement tag (done)
     for pref_node in imdp.vector_V:
         temp = {}
         for state in imdp.vector_V[pref_node]:
@@ -117,7 +117,7 @@ def construct_improvement_mdp(mdp):
     imdp.dfa = dcp(mdp.dfa)
     imdp.ASF = dcp(mdp.ASF)
 
-    imdp.ASR = dcp(mdp.ASR)  # FIXME: double imdp ASW region with improvement tag (done)
+    imdp.ASR = dcp(mdp.ASR)  # double imdp ASW region with improvement tag (done)
     for pref_node in imdp.ASR:
         temp = set()
         for state in imdp.ASR[pref_node]:
@@ -150,8 +150,8 @@ def spi_strategy(imdp, asw_strategy):
 
     # Initialize SPI strategy for all states in imdp.
     for v in imdp.S:
-        # TODO: Assuming imdp construction assigns same vector values to v and (v, IMPROVED)
-        val, seq = vector_value(imdp, v)  # FIXME: Copy vector value information to imdp. (duplicated, done)
+        # Assuming imdp construction assigns same vector values to v and (v, IMPROVED)
+        val, seq = vector_value(imdp, v)  # Copy vector value information to imdp. (duplicated, done)
         if 1 in val:
             idx = val.index(1)  # Choice of ASW strategy is arbitrary.
             if v in normal_states:
@@ -161,11 +161,11 @@ def spi_strategy(imdp, asw_strategy):
 
     # Iteratively synthesize SPI strategy
     while len(queue) > 0:
-        v = queue.pop(0) # FIXME: only contains improved states?
+        v = queue.pop(0)    # FIXME: only contains improved states? (initially, yes. while loop may add other states.)
         visited.append(v)
         # pred = set(imdp.predecessors(v)) - set.union(set(queue), set(visited))
-        pred = imdp.predecessors(v) - set.union(set(queue), set(visited))  # FIXME: predecessor function needed. (done) set returned
-        # FIXME: if pred is empty, this reduction will return empty set, is that correct?
+        pred = imdp.predecessors(v) - set.union(set(queue), set(visited))  # predecessor function needed. (done) set returned
+        # FIXME: if pred is empty, this reduction will return empty set, is that correct? (yes.)
 
         # Each predecessor has positive probability to reach improved_states. Add it to queue.
         for p in pred:
@@ -184,8 +184,8 @@ def spi_strategy(imdp, asw_strategy):
             #   (i) level of successor s is smaller than v
             #   (ii) successor s and v are ASW in same objective Xi, for which vector-value(v) = 1.
 
-            for a in imdp.enabled_actions(v):  # FIXME: enabled_actions function needed. (done)
-                successors = imdp.successors(v, a)  # FIXME: successors function needed. (done)
+            for a in imdp.enabled_actions(v):  # FIXME: enabled_actions function needed.
+                successors = imdp.successors(v, a)  # FIXME: successors function needed.
                 for s in successors:
                     vec_s, _ = vector_value(imdp, s)
                     vec_v, _ = vector_value(imdp, v)
@@ -201,6 +201,25 @@ def spi_strategy(imdp, asw_strategy):
                 pi[(v, IMPROVED)] = spi_actions
 
     return pi
+
+
+def calc_asw_pi(mdp):
+    """
+    Structure of asw_strategy: {
+                                    "X1": {"v1": {a1, a2}, "v2": {a1}...},
+                                    "X2": {"v1": {a1, a2}, "v2": {a1}...},
+                                }
+    """
+    asw_strategy = {pref_st: dict() for pref_st in mdp.ASR.keys()}
+    for pref_st in asw_strategy:
+        for v in mdp.ASR[pref_st]:
+            for a in mdp.enabled_actions(v):
+                successors = mdp.successors(v, a)
+                if set.issubset(successors, set(mdp.ASR[pref_st])):
+                    if v not in asw_strategy[pref_st]:
+                        asw_strategy[pref_st][v] = set()
+                    asw_strategy[pref_st][v].add(a)
+    return asw_strategy
 
 
 if __name__ == '__main__':
@@ -233,7 +252,7 @@ if __name__ == '__main__':
                                     }
     """
     # asw_strategy = {'I':{v1:{a1, a2},... },'II':{},'III':{},'IV':{},'V':{},'VI':{}}
-    # TODO: finish asw_strategy
-    asw_strategy = imdp.calc_asw_pi(imdp.ASR)
 
+    # TODO: finish asw_strategy
+    asw_strategy = calc_asw_pi(imdp)
     spi_strategy(imdp, asw_strategy)
