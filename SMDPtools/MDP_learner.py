@@ -180,6 +180,7 @@ class MDP:
         self.H = {}
         self.ASF = {}
         self.ASR = {}
+        self.vector_V = {}
 
         self.Pi, self.Pi_ = {}, {} # policy and memory of last iteration policy
         self.Pi_opt, self.Pi_opt_ = {}, {}  # policy and memory of last iteration policy
@@ -294,6 +295,38 @@ class MDP:
                 break  # outer loop complete.
         return X0
 
+    def predecessors(self, v): # v as state
+        result = set()
+        for key in self.P:
+            if v in self.P[key] and self.P[key][v] > 0:
+                result.add(key[0])
+
+        return result
+
+    def successors(self, v, a): # v as state, a as action
+        result = set()
+        if len(self.P[tuple(v), a]):
+            for v_ in self.P[tuple(v), a]:
+                if type(v_) == tuple and self.P[tuple(v), a][v_] > 0:
+                    result.add(v_)
+
+        return result
+        # return list(result)
+
+    def enabled_actions(self, v): # v as a state
+        result = set()
+        for a in self.A:
+            flag = False
+            if tuple([tuple(v), a]) in self.P:
+                for v_ in self.P[tuple(v), a]:
+                    if type(v_) == tuple and self.P[tuple(v), a][v_] >= 0:
+                        flag = True
+                        break
+            if flag:
+                result.add(a)
+
+        return result
+
     # API: DFA * MDP product
     def product(self, dfa, mdp):
         result = MDP()
@@ -398,8 +431,55 @@ class MDP:
         for key in result.ASF.keys():
             if key not in result.ASR:
                 result.ASR[key] = result.AS_reachability(result.ASF[key])
+                result.vector_V[key] = {}
+
+        for s in result.S:
+            result.init_ASR_V(s)
 
         return result
+
+    def get_vector_V(self, s): #TODO: add the function here
+        result = {}
+        for key in self.dfa.inv_pref_labels.keys():
+            if key not in result:
+                result[key] = self.vector_V[key][s]
+        return result
+
+    def init_ASR_V(self, s):
+
+        visited = []  # List to keep track of visited nodes.
+        queue = []  # Initialize a queue
+        for key in self.dfa.inv_pref_labels.keys():
+            if key not in self.dfa.pref_trans and key not in visited and key not in queue: # key=“I” in the example
+                visited.append(key)
+                queue.append(key)
+
+        while queue:
+            i = queue.pop(0)
+            # print(i, end=" ")
+            # print(s, i, visited, queue)
+            if s in self.ASR[i]: # start from mostly preferred node in the graph (top), e.g. node "I" - q=8
+                self.vector_V[i][s] = 1
+                if i in self.dfa.pref_trans:
+                    for j in self.dfa.pref_trans[i]:
+                        if s in self.vector_V[j] and self.vector_V[j][s] == 1 and i not in self.dfa.pref_trans[j]: # j in i and i in j means i,j are equivalent
+                            self.vector_V[i][s] = 0
+                            break
+
+                    # no matter i is 1 or 0
+                    if i in self.dfa.inv_pref_trans:
+                        for k in self.dfa.inv_pref_trans[i]: # check if there were less preferred nodes visited already due to the topology
+                            if s in self.vector_V[k] and self.vector_V[k][s] == 1 and i not in self.dfa.inv_pref_trans[k] and self.vector_V[k][s] == 1: # j in i and i in j means i,j are equivalent
+                                self.vector_V[k][s] = 0
+            else:
+                self.vector_V[i][s] = 0
+
+            if i in self.dfa.inv_pref_trans:
+                for child in self.dfa.inv_pref_trans[i]:
+                    # print(child, visited)
+                    if child not in visited:
+                        visited.append(child)
+                        queue.append(child)
 
     # Init: preparation for 1 step transition probability generation, not important
     def add_wall(self, inners):

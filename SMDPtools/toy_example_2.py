@@ -12,6 +12,7 @@ import pygame, sys, time, random
 from pygame.locals import *
 
 import yaml
+import pickle
 
 import matplotlib.pyplot as plt
 
@@ -165,15 +166,18 @@ if __name__ == "__main__":
     result = mdp.product(dfa, mdp)
 
     result.plotKey = False
+    #
+    # with open("prod_MDP_simple2", 'w', encoding="utf-8") as yaml_file:
+    #     yaml.dump(result.P, yaml_file)
+    # # curve['action'] = result.SVI(0.001)
+    #
+    # with open("prod_MDP_simple2", 'r', encoding="utf-8") as yaml_file:
+    #     # The FullLoader parameter handles the conversion from YAML
+    #     # scalar values to Python the dictionary format
+    #     saved_prod_space = yaml.load(yaml_file, Loader=yaml.FullLoader)
 
-    with open("prod_MDP_simple2", 'w', encoding="utf-8") as yaml_file:
-        yaml.dump(result.P, yaml_file)
-    # curve['action'] = result.SVI(0.001)
-
-    with open("prod_MDP_simple2", 'r', encoding="utf-8") as yaml_file:
-        # The FullLoader parameter handles the conversion from YAML
-        # scalar values to Python the dictionary format
-        saved_prod_space = yaml.load(yaml_file, Loader=yaml.FullLoader)
+    with open("prod_MDP_toy.pkl", 'wb') as pkl_file: #pkl
+        pickle.dump(result, pkl_file)
 
     print("end.")
 
