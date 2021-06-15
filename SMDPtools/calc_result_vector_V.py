@@ -123,7 +123,7 @@ def construct_improvement_mdp(mdp):
         for state in imdp.ASR[pref_node]:
             improved_state = (state, IMPROVED)
             temp.add(improved_state)
-        imdp.ASR[pref_node].union(temp)
+        imdp.ASR[pref_node] = imdp.ASR[pref_node].union(temp)
 
     imdp.mdp = mdp
 
@@ -146,6 +146,7 @@ def spi_strategy(imdp, asw_strategy):
     visited = list()
     queue = [v for v in improved_states]  # Helps identify which states have +ve probability of improvement.
     level = {v: 0 for v in improved_states}  # Needed to construct SPI strategy.
+    # FIXME: level with only improved_states only, might come across normal states later returned by the successors
     pi = dict()
 
     # Initialize SPI strategy for all states in imdp.
@@ -154,13 +155,16 @@ def spi_strategy(imdp, asw_strategy):
         val, seq = vector_value(imdp, v)  # Copy vector value information to imdp. (duplicated, done)
         if 1 in val:
             idx = val.index(1)  # Choice of ASW strategy is arbitrary.
-            if v in normal_states:
+            # if type(v[1]) == str:
+            #     print(v, v in normal_states)
+            if type(v[1]) != str and v in normal_states: #FIXME: add type(v[1]) != str to avoid value error
                 pi[v] = asw_strategy[seq[idx]][v]
             else:
                 pi[v] = asw_strategy[seq[idx]][v[0]]
 
     # Iteratively synthesize SPI strategy
     while len(queue) > 0:
+        print(len(queue), len(visited), "/", len(normal_states)*2)
         v = queue.pop(0)    # FIXME: only contains improved states? (initially, yes. while loop may add other states.)
         visited.append(v)
         # pred = set(imdp.predecessors(v)) - set.union(set(queue), set(visited))
@@ -177,7 +181,7 @@ def spi_strategy(imdp, asw_strategy):
                 queue.append(p)
 
         # Design SPI strategy at current state: v.
-        if v in normal_states:
+        if type(v[1]) != str and v in normal_states: #FIXME: add type(v[1]) != str to avoid value error
             spi_actions = set()
 
             # An enabled action a at state v is SPI action iff all successors satisfy at least one of 2 conditions:
@@ -213,12 +217,21 @@ def calc_asw_pi(mdp):
     asw_strategy = {pref_st: dict() for pref_st in mdp.ASR.keys()}
     for pref_st in asw_strategy:
         for v in mdp.ASR[pref_st]:
+            if v not in asw_strategy[pref_st]: #FIXME: add entry even it is empty, otherwise the asw_strategy might have key error
+                asw_strategy[pref_st][v] = set()
             for a in mdp.enabled_actions(v):
                 successors = mdp.successors(v, a)
-                if set.issubset(set(successors), set(mdp.ASR[pref_st])):
+                if set.issubset(successors, set(mdp.ASR[pref_st])): #len(successors)
                     if v not in asw_strategy[pref_st]:
                         asw_strategy[pref_st][v] = set()
-                    asw_strategy[pref_st][v].add(a)
+                    if len(successors):
+                        asw_strategy[pref_st][v].add(a)
+                # else:
+                #     if v not in asw_strategy[pref_st]:
+                #         asw_strategy[pref_st][v] = set()
+                # else: # for debugging
+                #     print(successors, set(mdp.ASR[pref_st]))
+                #     print("=================================")
     return asw_strategy
 
 
@@ -255,4 +268,7 @@ if __name__ == '__main__':
 
     # TODO: finish asw_strategy
     asw_strategy = calc_asw_pi(imdp)
-    spi_strategy(imdp, asw_strategy)
+    pi = spi_strategy(imdp, asw_strategy)
+
+    with open("PI_prod_MDP_gridworld.pkl", 'wb') as pkl_file: #pkl
+        pickle.dump(pi, pkl_file)

@@ -357,13 +357,14 @@ class MDP:
                 if type(v_) == tuple and self.P[tuple(v), a][v_] > 0:
                     result.add(v_)
 
-        return list(result)
+        return result
+        # return list(result)
 
     def enabled_actions(self, v): # v as a state
         result = set()
         for a in self.A:
             flag = False
-            if tuple(tuple(v), a) in self.P:
+            if tuple([tuple(v), a]) in self.P:
                 for v_ in self.P[tuple(v), a]:
                     if type(v_) == tuple and self.P[tuple(v), a][v_] >= 0:
                         flag = True
