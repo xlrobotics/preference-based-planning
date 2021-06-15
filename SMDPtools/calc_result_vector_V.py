@@ -1,6 +1,7 @@
 import yaml
 import pickle
 import json
+from tqdm import tqdm
 from MDP_learner_backup import MDP
 from copy import deepcopy as dcp
 
@@ -70,7 +71,7 @@ def construct_improvement_mdp(mdp):
 
     # Construct edge set
     ndict = dict()
-    for state, act in mdp.P:
+    for state, act in tqdm(mdp.P):
         # Main algorithm
         successors = mdp.P[(state, act)].keys()
         for succ_state in successors:
@@ -130,7 +131,7 @@ def construct_improvement_mdp(mdp):
     return imdp
 
 
-def spi_strategy(imdp, asw_strategy):
+def spi_strategy2(imdp, asw_strategy):
     """
     Alg. 1 from draft.
     imdp: improvement mdp.
@@ -150,7 +151,8 @@ def spi_strategy(imdp, asw_strategy):
     pi = dict()
 
     # Initialize SPI strategy for all states in imdp.
-    for v in imdp.S:
+    print(f"starting loop 1")
+    for v in tqdm(imdp.S):
         # Assuming imdp construction assigns same vector values to v and (v, IMPROVED)
         val, seq = vector_value(imdp, v)  # Copy vector value information to imdp. (duplicated, done)
         if 1 in val:
@@ -161,8 +163,11 @@ def spi_strategy(imdp, asw_strategy):
                 pi[v] = asw_strategy[seq[idx]][v]
             else:
                 pi[v] = asw_strategy[seq[idx]][v[0]]
+        else:
+            pi[v] = set()
 
     # Iteratively synthesize SPI strategy
+    print(f"starting while loop")
     while len(queue) > 0:
         print(len(queue), len(visited), "/", len(normal_states)*2)
         v = queue.pop(0)    # FIXME: only contains improved states? (initially, yes. while loop may add other states.)
@@ -207,6 +212,70 @@ def spi_strategy(imdp, asw_strategy):
     return pi
 
 
+def spi_strategy(imdp, asw_strategy):
+    # Separate MDP states and improved-labeled states.
+    mdp_states = {v for v in imdp.S if v[1] != IMPROVED}
+    imp_states = {v for v in imdp.S if v[1] == IMPROVED}
+    print(f"mdp_states={len(mdp_states)}, imp_states={len(imp_states)}")
+
+    # Initialize local variables
+    visited = set()
+    frontier = list(dcp(imp_states))
+    level = {v: float("inf") for v in mdp_states}
+    level.update({v: 0 for v in imp_states})
+    pi = {v: set() for v in set.union(mdp_states, imp_states)}
+    print(f"visited={len(visited)}, frontier={len(frontier)}, level={len(level.keys())}")
+
+    while len(frontier) > 0:
+        # Select a state for visiting in this loop.
+        v = frontier.pop(0)
+        visited.add(v)
+
+        # Get predecessors of state. Update level of each predecessor.
+        pred = [p for p in imdp.predecessors(v) if (p not in frontier and p not in visited)]
+        for p in pred:
+            level[p] = level[v] + 1
+            frontier.append(p)
+
+        # If state is MDP state, process it further.
+        if v in mdp_states:
+            # Initialize variables to check conditions for identifying SPI actions
+            pos_imp_actions = set()
+            flag_cond1 = False
+            val_v, seq = vector_value(imdp, v)
+
+            # Identify SPI actions
+            for a in imdp.enabled_actions(v):
+                succ = imdp.successors(v, a)
+                for s in succ:
+                    val_s, _ = vector_value(imdp, s)
+
+                    if level[s] < level[v]:
+                        flag_cond1 = True
+                        pos_imp_actions.add(a)
+                    elif any([val_s[i] == val_v[i] for i in range(len(val_s))]):
+                        pos_imp_actions.add(a)
+                    else:
+                        pos_imp_actions.remove(a)
+                        flag_cond1 = False
+                        break       # continue exploring next action
+
+            if len(pos_imp_actions) > 0 and flag_cond1:
+                pi[v] = pos_imp_actions
+            elif any([val_v[i] == 1 for i in range(len(val_v))]):
+                idx = val_v.index(1)
+                pi[v] = asw_strategy[seq[idx]][v]
+            else:
+                pi[v] = set()
+
+        # Define SPI strategy for "improve"-labeled states
+        for v, imp in imp_states:
+            pi[(v, imp)] = pi[v]
+
+        # Return SPI strategy
+        return pi
+
+
 def calc_asw_pi(mdp):
     """
     Structure of asw_strategy: {
@@ -245,8 +314,11 @@ if __name__ == '__main__':
     imdp = construct_improvement_mdp(mdp)
     print("okay")
 
-    asw_strategy = calc_asw_pi(imdp)
-    pi = spi_strategy(imdp, asw_strategy)
+    # asw_strategy = calc_asw_pi(imdp)
+    # print("asw_strategy done.")
+    # pi = spi_strategy(imdp, asw_strategy)
+    pi = spi_strategy(imdp, None)
+    print("spi_strategy done.")
 
-    with open("PI_prod_MDP_gridworld.pkl", 'wb') as pkl_file: #pkl
-        pickle.dump(pi, pkl_file)
+    # with open("PI_prod_MDP_gridworld.pkl", 'wb') as pkl_file: #pkl
+    #     pickle.dump(pi, pkl_file)
