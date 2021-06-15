@@ -236,20 +236,7 @@ def calc_asw_pi(mdp):
 
 
 if __name__ == '__main__':
-    # with open("prod_MDP_gridworld.pkl", 'rb') as pkl_file:  # pkl
-    #     result = pickle.load(pkl_file)
-
-    # counter = 0
-    # total = len(result.S)
-    # for s in result.S:
-    #     print("processing key:", s, counter, "/", total, " done")
-    #     result.init_ASR_V(s)
-    #     counter += 1
-
-    # with open("prod_MDP_gridworld_updated.pkl", 'wb') as pkl_file: #pkl
-    #     pickle.dump(result, pkl_file)
-
-    mdp = None
+    # mdp = None
     with open("prod_MDP_gridworld_updated.pkl", 'rb') as pkl_file:  # pkl
         mdp = pickle.load(pkl_file)
 
@@ -258,15 +245,6 @@ if __name__ == '__main__':
     imdp = construct_improvement_mdp(mdp)
     print("okay")
 
-    """
-        Structure of asw_strategy: {
-                                        "X1": {"v1": {a1, a2}, "v2": {a1}...},
-                                        "X2": {"v1": {a1, a2}, "v2": {a1}...},
-                                    }
-    """
-    # asw_strategy = {'I':{v1:{a1, a2},... },'II':{},'III':{},'IV':{},'V':{},'VI':{}}
-
-    # TODO: finish asw_strategy
     asw_strategy = calc_asw_pi(imdp)
     pi = spi_strategy(imdp, asw_strategy)
 
