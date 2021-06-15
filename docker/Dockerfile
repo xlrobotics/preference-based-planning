@@ -36,3 +36,4 @@ RUN update-ca-certificates
 RUN pip3 install scipy pygame 
 RUN pip3 install pyyaml 
 RUN pip3 install lark
+RUN pip3 install tqdm
