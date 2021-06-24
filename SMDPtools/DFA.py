@@ -54,12 +54,21 @@ class DFA:
         self.g_unsafe = ''
         self.final_transitions = []
         self.pref_labels = {}
+        self.pref_trans = {}
+        self.inv_pref_trans = {}
         self.inv_pref_labels = {}
         # self.actions = []
 
     def pref_labeling(self, q, pref_node):
         if q not in self.pref_labels:
             self.pref_labels[q] = pref_node
+
+    def add_pref_trans(self, a, b): # a->b, b is more preferred
+        if a not in self.pref_trans:
+            self.pref_trans[a] = []
+
+        if b not in self.pref_trans[a]:
+            self.pref_trans[a].append(b)
 
     def clear(self):
         self.state_transitions = {}
