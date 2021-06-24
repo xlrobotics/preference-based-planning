@@ -75,7 +75,7 @@ def construct_improvement_mdp(mdp):
 
     # Construct edge set
     ndict = dict()
-    for state, act in tqdm(mdp.P):
+    for state, act in tqdm(mdp.P, desc="Construct IMDP Edges."):
         # Main algorithm
         successors = mdp.P[(state, act)].keys()
         for succ_state in successors:
@@ -296,22 +296,28 @@ def spi_strategy(imdp):
     frontier = [v for v in imdp.S if v[1] == IMPROVED]
 
     print(f"Starting BFS-visitation: |frontier|={len(frontier)}, |visited|={len(visited)}, |V|={len(imdp.S)}")
-    while len(frontier) > 0:
-        # print(f"|frontier|={len(frontier)}, |visited|={len(visited)}, |V|={len(imdp.S)}")
+    pbar = tqdm(imdp.S)
+    # while len(frontier) > 0:
+    for _ in pbar:
+        pbar.set_description(f"|frontier|={len(frontier)}, |visited|={len(visited)}, |V|={len(imdp.S)}")
         v = frontier.pop(0)
         visited.add(v)
-        print(f"Visiting: {v}")
         pre_v = imdp.predecessors(v)
+        if len(pre_v) > 0:
+            print(f"Visiting: {v}, pred: {pre_v}")
+
         for u, a in pre_v:
             if level[u] == float("inf") and u[1] != IMPROVED:
                 level[u] = level[v] + 1
                 frontier.append(u)
+                print(f"Visiting: {v}, Add {u} to frontier.")
+
             if level[v] < level[u] != float("inf"):
                 spi[u].add(a)
                 spi[(u, IMPROVED)].add(a)
-                print(f"spi[{u}]={spi[u]}")
+                print(f"Visiting: {v}, spi[{u}]={spi[u]}")
 
-    print(f"Starting for-loop.")
+    print(f"Generate SPI strategy for States from which Positively Improving Actions do NOT exist.")
     for v in imdp.S:
         if len(spi[v]) == 0:
             spi[v] = imdp.enabled_actions(v)
@@ -350,7 +356,7 @@ if __name__ == '__main__':
     imdp = construct_improvement_mdp(mdp)
     print("okay")
 
-    asw_strategy = calc_asw_pi(imdp)
+    # asw_strategy = calc_asw_pi(imdp)
     # print("asw_strategy done.")
     # pi = spi_strategy(imdp, asw_strategy)
     pi = spi_strategy(imdp)
