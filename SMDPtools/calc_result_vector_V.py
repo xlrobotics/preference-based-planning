@@ -212,7 +212,7 @@ def spi_strategy2(imdp, asw_strategy):
     return pi
 
 
-def spi_strategy(imdp, asw_strategy):
+def spi_strategy3(imdp, asw_strategy):
     # Separate MDP states and improved-labeled states.
     mdp_states = {v for v in imdp.S if v[1] != IMPROVED}
     imp_states = {v for v in imdp.S if v[1] == IMPROVED}
@@ -274,6 +274,43 @@ def spi_strategy(imdp, asw_strategy):
 
         # Return SPI strategy
         return pi
+
+
+def spi_strategy(imdp, asw_strategy):
+    # Initialize strategy, level dictionaries
+    spi = dict()
+    level = dict()
+    for v in imdp.S:
+        spi[v] = set()
+        if v[1] == IMPROVED:
+            level[v] = 0
+        else:
+            level[v] = float("inf")
+
+    # Initialize queue and visited set
+    visited = set()
+    frontier = [v for v in imdp.S if v[1] == IMPROVED]
+
+    while len(frontier) > 0:
+        v = frontier.pop(0)
+        visited.add(v)
+        pre_v = imdp.predecessors(v)
+        for u, a in pre_v:
+            if u not in frontier and u not in visited and u[1] != IMPROVED:
+                level[u] = level[v] + 1
+                frontier.append(u)
+            if level[v] < level[u]:
+                spi[u].add(a)
+                spi[(u, IMPROVED)].add(a)
+
+    for v in imdp.S:
+        if len(spi[v]) == 0:
+            val_v, seq = vector_value(imdp, v)
+            idx_1 = val_v.index(1)
+            spi[v] = asw_strategy[seq[idx_1]][v]
+            spi[(v, IMPROVED)] = asw_strategy[seq[idx_1]][v]
+
+    return spi
 
 
 def calc_asw_pi(mdp):
