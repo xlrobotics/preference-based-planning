@@ -1,3 +1,5 @@
+import sys
+
 import yaml
 import pickle
 import json
@@ -61,9 +63,11 @@ def is_gt(mdp, v1, v2):
     # Return gt_flag after Condition 1 is checked for all possible cases in the loop.
     return gt_flag
 
-def Merge(dict1, dict2):
+
+def merge(dict1, dict2):
     res = {**dict1, **dict2}
     return res
+
 
 def construct_improvement_mdp(mdp):
     # Construct state set
@@ -112,7 +116,7 @@ def construct_improvement_mdp(mdp):
         for state in imdp.vector_V[pref_node]:
             improved_state = (state, IMPROVED)
             temp[improved_state] = dcp(imdp.vector_V[pref_node][state])
-        imdp.vector_V[pref_node] = Merge(temp, imdp.vector_V[pref_node])
+        imdp.vector_V[pref_node] = merge(temp, imdp.vector_V[pref_node])
         # pass
 
     imdp.dfa = dcp(mdp.dfa)
@@ -276,7 +280,7 @@ def spi_strategy3(imdp, asw_strategy):
         return pi
 
 
-def spi_strategy(imdp, asw_strategy):
+def spi_strategy(imdp):
     # Initialize strategy, level dictionaries
     spi = dict()
     level = dict()
@@ -291,24 +295,27 @@ def spi_strategy(imdp, asw_strategy):
     visited = set()
     frontier = [v for v in imdp.S if v[1] == IMPROVED]
 
+    print(f"Starting BFS-visitation: |frontier|={len(frontier)}, |visited|={len(visited)}, |V|={len(imdp.S)}")
     while len(frontier) > 0:
+        # print(f"|frontier|={len(frontier)}, |visited|={len(visited)}, |V|={len(imdp.S)}")
         v = frontier.pop(0)
         visited.add(v)
+        print(f"Visiting: {v}")
         pre_v = imdp.predecessors(v)
         for u, a in pre_v:
-            if u not in frontier and u not in visited and u[1] != IMPROVED:
+            if level[u] == float("inf") and u[1] != IMPROVED:
                 level[u] = level[v] + 1
                 frontier.append(u)
-            if level[v] < level[u]:
+            if level[v] < level[u] != float("inf"):
                 spi[u].add(a)
                 spi[(u, IMPROVED)].add(a)
+                print(f"spi[{u}]={spi[u]}")
 
+    print(f"Starting for-loop.")
     for v in imdp.S:
         if len(spi[v]) == 0:
-            val_v, seq = vector_value(imdp, v)
-            idx_1 = val_v.index(1)
-            spi[v] = asw_strategy[seq[idx_1]][v]
-            spi[(v, IMPROVED)] = asw_strategy[seq[idx_1]][v]
+            spi[v] = imdp.enabled_actions(v)
+            spi[(v, IMPROVED)] = imdp.enabled_actions(v)
 
     return spi
 
@@ -323,21 +330,13 @@ def calc_asw_pi(mdp):
     asw_strategy = {pref_st: dict() for pref_st in mdp.ASR.keys()}
     for pref_st in asw_strategy:
         for v in mdp.ASR[pref_st]:
-            if v not in asw_strategy[pref_st]: #FIXME: add entry even it is empty, otherwise the asw_strategy might have key error
-                asw_strategy[pref_st][v] = set()
             for a in mdp.enabled_actions(v):
                 successors = mdp.successors(v, a)
-                if set.issubset(successors, set(mdp.ASR[pref_st])): #len(successors)
-                    if v not in asw_strategy[pref_st]:
-                        asw_strategy[pref_st][v] = set()
-                    if len(successors):
+                if len(successors):
+                    if set.issubset(successors, set(mdp.ASR[pref_st])):
+                        if v not in asw_strategy[pref_st]:
+                            asw_strategy[pref_st][v] = set()
                         asw_strategy[pref_st][v].add(a)
-                # else:
-                #     if v not in asw_strategy[pref_st]:
-                #         asw_strategy[pref_st][v] = set()
-                # else: # for debugging
-                #     print(successors, set(mdp.ASR[pref_st]))
-                #     print("=================================")
     return asw_strategy
 
 
@@ -351,10 +350,10 @@ if __name__ == '__main__':
     imdp = construct_improvement_mdp(mdp)
     print("okay")
 
-    # asw_strategy = calc_asw_pi(imdp)
+    asw_strategy = calc_asw_pi(imdp)
     # print("asw_strategy done.")
     # pi = spi_strategy(imdp, asw_strategy)
-    pi = spi_strategy(imdp, None)
+    pi = spi_strategy(imdp)
     print("spi_strategy done.")
 
     # with open("PI_prod_MDP_gridworld.pkl", 'wb') as pkl_file: #pkl
