@@ -315,7 +315,7 @@ class MDP:
 
     def enabled_actions(self, v): # v as a state
         result = set()
-        for a in self.A:
+        for a in self.A_simple:
             flag = False
             if tuple([tuple(v), a]) in self.P:
                 for v_ in self.P[tuple(v), a]:
