@@ -14,4 +14,4 @@ targets: [[0, 0],[3, 0],[2, 1]]
 obstacles: []
 manual: True
 sample_path: [0, 0, 1, 2, 3, 1, 2, 0, 0]
-
+rendering: False

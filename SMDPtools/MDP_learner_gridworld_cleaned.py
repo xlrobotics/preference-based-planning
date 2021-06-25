@@ -11,6 +11,7 @@ import pickle
 from copy import deepcopy as dcp
 import yaml
 import json
+from tqdm import tqdm
 
 '''
 Comment tags:
@@ -331,13 +332,13 @@ class MDP:
         counter = 0
 
         if len(self.transition_file) == 0:
-            for p in mdp.P.keys():
+            for p in tqdm(mdp.P.keys(), desc="Computing Product MDP."):
                 counter += 1
 
                 # if counter == 100:
                 #     break
 
-                print("processing key:", p, counter,"/", total," done")
+                # print("processing key:", p, counter,"/", total," done")
 
                 if p[0]==1 and p[2]==0:
                     print(p)
@@ -376,11 +377,11 @@ class MDP:
                             if tuple(new_s_) not in true_new_s:
                                 true_new_s.append(tuple(new_s_))
 
-                            if new_s_ in new_success and new_P[new_s, new_a][new_s_]>0 and new_s_[1] in dfa.pref_labels: # tagging, debug step, delete after check correct
-                                new_P[new_s, new_a][sink] = dfa.pref_labels[new_s_[1]]
-
-                            if new_s_ in new_fail and new_P[new_s, new_a][new_s_]>0: # tagging, debug step, delete after check correct
-                                new_P[new_s, new_a][fail] = 1
+                            # if new_s_ in new_success and new_P[new_s, new_a][new_s_]>0 and new_s_[1] in dfa.pref_labels: # tagging, debug step, delete after check correct
+                            #     new_P[new_s, new_a][sink] = dfa.pref_labels[new_s_[1]]
+                            #
+                            # if new_s_ in new_fail and new_P[new_s, new_a][new_s_]>0: # tagging, debug step, delete after check correct
+                            #     new_P[new_s, new_a][fail] = 1
 
                     if new_s not in true_new_s:
                         true_new_s.append(tuple(new_s))

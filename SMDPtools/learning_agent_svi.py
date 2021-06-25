@@ -7,7 +7,7 @@ from DFA import Action
 
 from gridworld import Tile, Grid_World
 # from q_learner import Q_learning
-from MDP_learner_backup import MDP
+from MDP_learner_gridworld_cleaned import MDP
 import pygame, sys, time, random
 from pygame.locals import *
 

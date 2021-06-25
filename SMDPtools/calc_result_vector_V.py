@@ -4,7 +4,7 @@ import yaml
 import pickle
 import json
 from tqdm import tqdm
-from MDP_learner_backup import MDP
+from MDP_learner_gridworld_cleaned import MDP
 from copy import deepcopy as dcp
 
 IMPROVED = "improved"
@@ -346,11 +346,23 @@ def calc_asw_pi(mdp):
     return asw_strategy
 
 
+def prune_mdp(mdp):
+    pruned_P = dict()
+    for u, a in mdp.P.keys():
+        if all(val == 0 for val in mdp.P[(u, a)].values()):
+            continue
+        pruned_P[(u, a)] = mdp.P[(u, a)]
+    mdp.P = pruned_P
+    return mdp
+
+
+
 if __name__ == '__main__':
     # mdp = None
-    with open("prod_MDP_gridworld_updated.pkl", 'rb') as pkl_file:  # pkl
+    with open("prod_MDP_gridworld.pkl", 'rb') as pkl_file:  # pkl
         mdp = pickle.load(pkl_file)
 
+    mdp = prune_mdp(mdp)
     print(mdp)
     print(vector_value(mdp, ((0, 0, 0, 0, 0), 14)))
     imdp = construct_improvement_mdp(mdp)
