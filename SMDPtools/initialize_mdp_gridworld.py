@@ -7,7 +7,8 @@ from DFA import Action
 
 from gridworld import Tile, Grid_World
 # from q_learner import Q_learning
-from MDP_learner_backup import MDP
+# from MDP_learner_backup import MDP
+from MDP_learner_gridworld_cleaned import MDP
 import pygame, sys, time, random
 from pygame.locals import *
 
@@ -109,8 +110,9 @@ if __name__ == "__main__":
                     q_s[A.v].append(tuple(board.goal_coord[0]+[c1_i, c2_i, b]))
                     q_s[B.v].append(tuple(board.goal_coord[1]+[c1_i, c2_i, b]))
                     q_s[C.v].append(tuple(board.goal_coord[2]+[c1_i, c2_i, b]))
-                for station_coord in board.station_coords:
-                    q_s[station.v].append(tuple(station_coord+[c1_i, c2_i, b]))
+
+            for station_coord in board.station_coords: # the station only allows full tank states
+                q_s[station.v].append(tuple(station_coord+[c1_i, c2_i, 12]))
 
     impossible_states = []
     for i in range(board.board_size[0]):
@@ -120,7 +122,7 @@ if __name__ == "__main__":
                     if [i, j] not in board.station_coords:
                         q_s[sinks.v].append(tuple([i, j, c1_i, c2_i, 0])) # when the uav used up its battery outside of the station
                     else:
-                        for k in range(board.battery_cap-1):
+                        for k in range(board.battery_cap):
                             impossible_states.append(tuple([i, j, c1_i, c2_i, k])) #when the uav is at the station, its power could only be full
 
     q_s[phi.v] = list(set(S) - set(q_s[A.v] + q_s[B.v] + q_s[C.v] + q_s[station.v] + q_s[sinks.v] + impossible_states))
@@ -143,7 +145,7 @@ if __name__ == "__main__":
 
     # mdp = MDP(transition_file="prod_MDP_gridworld.pkl")
     mdp = MDP()
-    mdp.set_S(states)
+    mdp.set_S(q_s[whole.v])
     mdp.set_WallCord(mdp.add_wall(q_s[sinks.v]))
     mdp.set_stations(board.station_coords)
     mdp.set_stations(board.goal_coord)

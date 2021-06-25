@@ -19,6 +19,7 @@ from pygame.locals import *
 import numpy as np
 import yaml
 import random
+import pickle
 # from random import random
 
 
@@ -42,7 +43,9 @@ class Tile:
     image_uav = pygame.image.load('uav.png')
     image_station = pygame.image.load('station.png')
     image_cloud = pygame.image.load('storm.png')
-    image_goal = pygame.image.load('goal.png')
+    image_goal_A = pygame.image.load('goal_A.png')
+    image_goal_B = pygame.image.load('goal_B.png')
+    image_goal_C = pygame.image.load('goal_C.png')
     image_charge = pygame.image.load('in_station.png')
     image_trap = pygame.image.load('in_storm.png')
 
@@ -71,7 +74,13 @@ class Tile:
             pygame.draw.rect(self.surface, pygame.Color('gray'), rectangle, 0)
         if self.tile_coord in goal:
             # pygame.draw.rect(self.surface, (32, 0, 0), rectangle, 0) #pygame.Color('green')
-            self.surface.blit(self.image_goal, rectangle)
+            if self.tile_coord == goal[0]:
+                self.surface.blit(self.image_goal_A, rectangle)
+            if self.tile_coord == goal[1]:
+                self.surface.blit(self.image_goal_B, rectangle)
+            if self.tile_coord == goal[2]:
+                self.surface.blit(self.image_goal_C, rectangle)
+
         if self.tile_coord in clouds:
             self.surface.blit(self.image_cloud, rectangle)
         if self.tile_coord in stations:
@@ -152,6 +161,14 @@ class Grid_World():
                                 state_set.append([i, j, c1_i, c2_i, b]) # each cloud only moves in one axis
                             elif dtype=="tuple":
                                 state_set.append(tuple([i, j, c1_i, c2_i, b]))  # each cloud only moves in one axis
+
+        for station in self.station_coords: # adding full battery cap states, only at station
+            for c1_i in range(self.board_size[0]):
+                for c2_i in range(self.board_size[0]):
+                    if dtype == "list":
+                        state_set.append(station+[c1_i, c2_i, 12])
+                    elif dtype=="tuple":
+                        state_set.append(tuple(station + [c1_i, c2_i, 12]))
         return state_set
 
     def get_current_state(self):
@@ -368,6 +385,9 @@ if __name__ == "__main__":
 
     # Refresh the display
     pygame.display.update()
+
+    with open("PI_prod_MDP_gridworld.pkl", 'rb') as pkl_file:  # pkl
+        pi = pickle.load(pkl_file)
 
     # Loop forever
     i = 0

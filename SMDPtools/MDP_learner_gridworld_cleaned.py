@@ -11,7 +11,6 @@ import pickle
 from copy import deepcopy as dcp
 import yaml
 import json
-from tqdm import tqdm
 
 '''
 Comment tags:
@@ -332,13 +331,13 @@ class MDP:
         counter = 0
 
         if len(self.transition_file) == 0:
-            for p in tqdm(mdp.P.keys(), desc="Computing Product MDP."):
+            for p in mdp.P.keys():
                 counter += 1
 
                 # if counter == 100:
                 #     break
 
-                # print("processing key:", p, counter,"/", total," done")
+                print("processing key:", p, counter,"/", total," done")
 
                 if p[0]==1 and p[2]==0:
                     print(p)
