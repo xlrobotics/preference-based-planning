@@ -211,7 +211,7 @@ class MDP:
         result = set()
         for key in self.P:
             if v in self.P[key] and self.P[key][v] > 0:
-                result.add(key[0])
+                result.add(key)     # PATCH return (u, a)
 
         return result
 

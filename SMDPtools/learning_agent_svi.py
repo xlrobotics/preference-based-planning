@@ -103,7 +103,7 @@ if __name__ == "__main__":
     q_s[sinks.v] = []
 
     for c1_i in range(board.board_size[0]):
-        for c2_i in range(board.board_size[0]):
+        for c2_i in range(board.board_size[0]):         # FIXME: should this be board.board_size[1]?
             for b in range(board.battery_cap):
                 if b > 0:
                     q_s[A.v].append(tuple(board.goal_coord[0]+[c1_i, c2_i, b]))
