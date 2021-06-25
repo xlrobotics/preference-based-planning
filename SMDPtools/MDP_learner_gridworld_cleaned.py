@@ -509,8 +509,11 @@ class MDP:
                         else:
                             s_ = temp_[:]
 
-                if list(s_) in self.originS: # only based on cloud dynamics
-                    self.P[s, a, s_] = 1/3 * 1/3
+                        if list(s_) in self.originS: # only based on cloud dynamics
+                            if (s, a, s_) not in self.P:
+                                self.P[s, a, s_] = 1/3*1/3
+                            else:
+                                self.P[s, a, s_] += 1/3 * 1/3
 
         return
 
