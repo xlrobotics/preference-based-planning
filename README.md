@@ -48,4 +48,4 @@ so we have the number of states outside the stations as `(uav.xrange*uav.yrange 
 
 so we have the number of states at the stations as `2*cloud1.xrange*cloud2.xrange = 2*16*9=32*9 = 288`
 
-then the total state space is `32+2688=2720` before the product
+then the total state space is `288+24192=24480` before the product
