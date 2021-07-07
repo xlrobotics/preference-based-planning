@@ -2,8 +2,9 @@ import yaml
 import pickle
 import json
 from tqdm import tqdm
-from MDP_learner_backup import MDP
+from MDP_learner_gridworld_cleaned import MDP
 from copy import deepcopy as dcp
+
 
 IMPROVED = "improved"
 

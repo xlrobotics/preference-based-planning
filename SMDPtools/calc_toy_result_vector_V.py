@@ -276,7 +276,7 @@ def spi_strategy3(imdp, asw_strategy):
         return pi
 
 
-def spi_strategy(imdp, asw_strategy):
+def spi_strategy(imdp):
     # Initialize strategy, level dictionaries
     spi = dict()
     level = dict()
@@ -290,25 +290,41 @@ def spi_strategy(imdp, asw_strategy):
     # Initialize queue and visited set
     visited = set()
     frontier = [v for v in imdp.S if v[1] == IMPROVED]
+    # frontier = frontier[1000:1400]    # debug
 
-    while len(frontier) > 0:
+    # print(f"Starting BFS-visitation: |frontier|={len(frontier)}, |visited|={len(visited)}, |V|={len(imdp.S)}")
+    pbar = tqdm(imdp.S)
+    # while len(frontier) > 0:
+    for _ in pbar:
+        # pbar.update()
+        if len(frontier) == 0:
+            break
+
+        pbar.set_description(f"|frontier|={len(frontier)}, |visited|={len(visited)}, |V|={len(imdp.S)}")
+
         v = frontier.pop(0)
         visited.add(v)
         pre_v = imdp.predecessors(v)
+        # if len(pre_v) > 0:
+        #     print(f"Visiting: {v}, pred: {pre_v}")
+
         for u, a in pre_v:
-            if u not in frontier and u not in visited and u[1] != IMPROVED:
+            if level[u] == float("inf") and u[1] != IMPROVED:
                 level[u] = level[v] + 1
                 frontier.append(u)
-            if level[v] < level[u]:
+
+                # print(f"Visiting: {v}, Add {u} to frontier.")
+
+            if level[v] < level[u] != float("inf"):
                 spi[u].add(a)
                 spi[(u, IMPROVED)].add(a)
+                # print(f"Visiting: {v}, spi[{u}]={spi[u]}")
 
+    print(f"Generate SPI strategy for States from which Positively Improving Actions do NOT exist.")
     for v in imdp.S:
         if len(spi[v]) == 0:
-            val_v, seq = vector_value(imdp, v)
-            idx_1 = val_v.index(1)
-            spi[v] = asw_strategy[seq[idx_1]][v]
-            spi[(v, IMPROVED)] = asw_strategy[seq[idx_1]][v]
+            spi[v] = imdp.enabled_actions(v)
+            spi[(v, IMPROVED)] = imdp.enabled_actions(v)
 
     return spi
 
