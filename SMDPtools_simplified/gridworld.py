@@ -21,6 +21,7 @@ import yaml
 import random
 import pickle
 # from random import random
+import logging
 
 
 action_dict = {'0': "Up",
@@ -168,15 +169,16 @@ class Grid_World():
             for c1_i in range(self.board_size[0]):
                 for c2_i in range(self.board_size[0]):
                     if dtype == "list":
-                        state_set.append(station+[c1_i, c2_i, 12])
+                        state_set.append(station+[c1_i, c2_i, self.battery_cap])
                     elif dtype=="tuple":
-                        state_set.append(tuple(station + [c1_i, c2_i, 12]))
+                        state_set.append(tuple(station + [c1_i, c2_i, self.battery_cap]))
         return state_set
 
-    def get_current_state(self):
+    def get_current_state(self):  # 5 dimension (uav.x, uav.y, c1.x, c2.x, battery)
         temp = self.position[:]
         for element in self.cloud_coords:
             temp.append(element[0])
+
         temp.append(self.battery)
         return temp
 
@@ -227,28 +229,6 @@ class Grid_World():
             for tile in row:
                 tile.draw(uav_pos, goals, clouds, stations)
 
-    def draw_heat(self, pos):
-        # print pos
-        gain = self.get_reward(pos, pos)
-
-        if gain == 0:
-            gain = 1
-        if gain < 0:
-            gain = -1
-
-        p = tuple(pos)
-        self.cumulated_heat[p] += gain
-
-        # print self.cumulated_heat[pos]
-
-        if self.cumulated_heat[p] < 0:
-            self.cumulated_heat[p] = 0
-        if self.cumulated_heat[p] > 205:
-            self.cumulated_heat[p] = 205
-
-        tempColor = (255 - self.cumulated_heat[p], 0, 0)
-        rectangle = pygame.Rect(p, (32, 32))
-        pygame.draw.rect(self.surface, tempColor, rectangle, 0)
 
     def update(self):
         # Check if the game is over. If so return True.
@@ -256,7 +236,7 @@ class Grid_World():
         # and return False.
         # - self is the TTT game
         self.step_cloud()
-        print(self.cloud_coords)
+        # print(self.cloud_coords)
         # self.step(0)
         if self.battery == 0:
             return True
@@ -300,6 +280,8 @@ class Grid_World():
             # print("Move Up")
             if [x+1, y] not in self.wall_coords and x+1 < self.board_size[0] and not self.trapped:
                 self.position = [x+1, y]
+            elif x+1 >= self.board_size[0]:  # world boundary, bounce back
+                self.position = [x-1, y]
             # if x+1 > self.board_size[0]:
             #     self.position = [x-1, y]
 
@@ -307,16 +289,23 @@ class Grid_World():
             # print("Move Down")
             if [x-1, y] not in self.wall_coords and x-1 >= 0 and not self.trapped:
                 self.position = [x-1, y]
+            elif x-1 < 0:
+                self.position = [x+1, y]
 
         elif action == 2:   # Action Right
             # print("Move Right")
             if [x, y+1] not in self.wall_coords and y+1 < self.board_size[1] and not self.trapped:
                 self.position = [x, y+1]
+            elif y+1 >= self.board_size[1]:
+                self.position = [x, y-1]
 
         elif action == 3:   # Action Left
             # print("Move Left")
             if [x, y-1] not in self.wall_coords and y-1 >= 0 and not self.trapped:
                 self.position = [x, y-1]
+            elif y-1 < 0:
+                self.position = [x, y+1]
+
 
         elif action == -1:
             pass
@@ -325,9 +314,10 @@ class Grid_World():
             self.battery = self.battery_cap
 
         if self.battery == 0:
-            print("battery depleted")
+            logging.warning("battery depleted")
             Done = True
-        state = self.get_current_state()
+        # state = self.get_current_state()
+        state = self.get_current_state_old()
 
         return state, Done
 
@@ -400,21 +390,23 @@ if __name__ == "__main__":
     with open("PI_prod_MDP_gridworld.pkl", 'rb') as pkl_file:  # pkl
         pi = pickle.load(pkl_file)
 
-    with open("prod_MDP_gridworld_v2.pkl", 'rb') as pkl_file:  # pkl
+    with open("prod_MDP_gridworld_v3.pkl", 'rb') as pkl_file:  # pkl
         model = pickle.load(pkl_file)
     #
-    for key in pi.keys():
-        if len(pi[key]) >0:
-            print(key, pi[key])
+    # for key in pi.keys():
+    #     if len(pi[key]) >0:
+    #         print(key, pi[key])
 
-    init_obs = board.get_current_state()
+    init_obs = board.get_current_state_old()
+    # init_obs = board.get_current_state()
+
     init_q = 0
     init_obs[4] = 11
     act_set = pi[tuple([tuple([tuple(init_obs), init_q]), 'improved'])]
     gameOver = False
 
     if len(act_set) == 0:
-        print('failing state detected, task terminated', init_obs)
+        logging.error('failing state %s detected, task terminated', init_obs)
         gameOver = True
     else:
         act = random.choice(list(act_set))
@@ -431,10 +423,17 @@ if __name__ == "__main__":
 
         # Update and draw objects for next frame
 
-        print("taking action: ", act)
+
+        old_pos = board.position
         obs, gameOver = board.step(board.action_map[act])
+        new_pos = board.position
+        # print("taking action: ", act, ' from ', old_pos, ' to ', new_pos, ' (trapping status: ', board.trapped, ')')
+
         trans = model.mdp.L[tuple(obs)]
-        print(trans, current_q)
+
+        logging.warning('Improving action set: %s. Taking action: %s from %s to %s, trapping status - %s. Transition: %s, current state (s): %s',
+                        act_set, act, old_pos, new_pos, board.trapped, trans, obs)
+
         current_q = model.dfa.state_transitions[tuple([trans[0], current_q])]
         board.update()
 
