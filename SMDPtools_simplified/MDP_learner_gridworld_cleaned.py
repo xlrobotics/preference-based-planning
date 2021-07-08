@@ -11,6 +11,7 @@ import pickle
 from copy import deepcopy as dcp
 import yaml
 import json
+import logging
 
 '''
 Comment tags:
@@ -292,13 +293,17 @@ class MDP:
 
         filtered_S = []
         for s in mdp.S:  #new_S
-            if s == [0, 3, 0, 0, 0]:
-                print(s)
-            if mdp.L[tuple(s)][0] != 'failure' and s not in filtered_S: # new_wall
+            if mdp.L[tuple(s)][0] != 'sink' and s not in filtered_S: # new_wall
                 filtered_S.append(s)
-            # filtered_S.append(s) # no need to filter here
 
-        result.originS = dcp(filtered_S)
+        removing_states = []
+        for s in filtered_S:
+            for transition in self.P:
+                if s == transition[0] and transition[2] not in filtered_S and self.P[transition] > 0:
+                    removing_states.append(s)
+
+
+        result.originS = dcp(list(set(filtered_S)-set(removing_states)))
 
         # result.init_S = self.crossproduct2(list([dfa.initial_state]), mdp.Exp['phi'])
         #
@@ -315,7 +320,6 @@ class MDP:
             if key not in result.ASF:
                 # result.ASF[key] = result.crossproduct2(dfa.inv_pref_labels[key], filtered_S)
                 result.ASF[key] = result.crossproduct(dfa.inv_pref_labels[key], filtered_S)
-                # result.ASF[key] = [(3, 1)]
 
         result.success = new_success[:]
 
@@ -337,7 +341,7 @@ class MDP:
                 # if counter == 100:
                 #     break
 
-                print("processing key:", p, counter,"/", total," done")
+                logging.warning("processing key: %s, progress(%s/%s)", p, counter, total)
 
                 if p[0]==1 and p[2]==0:
                     print(p)
@@ -469,14 +473,40 @@ class MDP:
         # cloud dynamics random walk, up, down, stay
         cloud_acts = [-1, 1]
 
-        for state in self.S:
+        for state in self.wall_cord:  # uav should go nowhere when the battery is 0
+            s = tuple(state)
+            for a in self.A.keys():
+                next_position = s[0:2]
+
+                for ca1 in cloud_acts:
+                    new_s2 = s[2] + ca1  # cloud bounce back
+                    if new_s2 > 3:
+                        new_s2 = s[2] - 1
+                    if new_s2 < 0:
+                        new_s2 = s[2] + 1
+
+                    for ca2 in cloud_acts:
+                        new_s3 = s[3] + ca2
+                        if new_s3 > 3:
+                            new_s3 = s[3] - 1
+                        if new_s3 < 0:
+                            new_s3 = s[3] + 1
+
+                        s_ = tuple(list(next_position) + [new_s2] + [new_s3] + [s[4]])
+
+                        if (s, a, s_) not in self.P:
+                            self.P[s, a, s_] = 1 / 2 * 1 / 2
+                        else:
+                            self.P[s, a, s_] += 1 / 2 * 1 / 2
+
+        for state in self.S: # calculates normal transitions when there are still battery left
             s = tuple(state)
             current_cloud_poses = []
             current_cloud_poses.append(tuple([s[2], 0]))
             current_cloud_poses.append(tuple([s[3], 1]))
 
             for a in self.A.keys():
-                self.P[s, a, s] = 0.0  # not possible to stay at the same state, since energy always -1
+                # self.P[s, a, s] = 0.0  # not possible to stay at the same state, since energy always -1，and clouds are always moving
 
                 if s[0:2] in current_cloud_poses: # trapped in clouds
                     next_position = s[0:2]
@@ -508,13 +538,14 @@ class MDP:
                         else:
                             s_ = temp_[:]
 
-                        if list(s_) in self.originS: # only based on cloud dynamics
+                        if tuple(s_) in self.originS: # only based on cloud dynamics
                             if (s, a, s_) not in self.P:
                                 self.P[s, a, s_] = 1/2 * 1/2
                             else:
                                 self.P[s, a, s_] += 1/2 * 1/2
 
         return
+
     def add_trans_P(self, s, a, s_, value):
         self.P[s, a, s_] = value
 
