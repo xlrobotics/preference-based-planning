@@ -1,0 +1,51 @@
+start: scltl_formula
+
+?scltl_formula:     scltl_equivalence
+?scltl_equivalence: scltl_implication (EQUIVALENCE scltl_implication)*
+?scltl_implication: scltl_or (IMPLY scltl_or)*
+?scltl_or:          scltl_and (OR scltl_and)*
+?scltl_and:         scltl_until (AND scltl_until)*
+?scltl_until:       scltl_release (UNTIL scltl_release)*
+?scltl_release:     scltl_unaryop (RELEASE scltl_unaryop)*
+
+?scltl_unaryop:     scltl_always
+             |     scltl_eventually
+             |     scltl_next
+             |     scltl_not
+             |     scltl_wrapped
+
+?scltl_always:      ALWAYS scltl_unaryop
+?scltl_eventually:  EVENTUALLY scltl_unaryop
+?scltl_next:        NEXT scltl_unaryop
+?scltl_not:         NOT scltl_atom
+?scltl_wrapped:     scltl_atom
+             |     LSEPARATOR scltl_formula RSEPARATOR
+?scltl_atom:        scltl_symbol
+          |        scltl_true
+          |        scltl_false
+
+scltl_symbol: SYMBOL_NAME
+scltl_true: prop_true
+scltl_false: prop_false
+
+// Operators must not be part of a word
+UNTIL.2: /U(?=[^a-z]|$)/
+RELEASE.2: /R(?=[^a-z]|$)/
+ALWAYS.2: /G(?=[^a-z]|$)/
+EVENTUALLY.2: /F(?=[^a-z]|$)/
+NEXT.2: /X(?=[^a-z]|$)/
+
+// Symbols cannot contain uppercase letters, because these are reserved
+SYMBOL_NAME: /[a-z][a-z0-9_]*/
+
+%ignore /\s+/
+
+%import .pl.prop_true -> prop_true
+%import .pl.prop_false -> prop_false
+%import .pl.NOT -> NOT
+%import .pl.OR -> OR
+%import .pl.AND -> AND
+%import .pl.EQUIVALENCE -> EQUIVALENCE
+%import .pl.IMPLY -> IMPLY
+%import .pl.LSEPARATOR -> LSEPARATOR
+%import .pl.RSEPARATOR -> RSEPARATOR
