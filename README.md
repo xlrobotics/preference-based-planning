@@ -8,6 +8,11 @@ OR
 
 Build the docker image using Dockerfile in `preference-based-planning/docker`
 
+## Running Instruction
+1. run 'initialize_mdp_gridworld.py' to generate the product mdp, AS region and vector value function. The result will be stored as an MDP object in the pickle file 'prod_MDP_gridworld_v2.pkl'.
+2. run 'calc_result_vector_V.py' to generate the spi policy and store as a dictionary in the pickle file 'PI_prod_MDP_gridworld_v2.pkl'.
+3. run 'gridworld.py' to test and visualize the policy via pygame env. The configuration of the env is defined in 'toy_example.yaml'.
+
 
 ## State Space Configuration （cloud without staying option）
 
