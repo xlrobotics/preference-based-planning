@@ -1,0 +1,10 @@
+digraph G { rankdir = LR
+    13->12[{A, B, C}>{}]
+    12->9[{[A, B]}>{A, B, C}]
+    12->11[{[B, C]}>{A, B, C}]
+    9->10[{[A, C]}>{[A, B]}]
+    10->8[{[A, B, C]}>{[B, C]}]
+    11->8[{[A, B, C]}>{[A, C]}]
+}
+
+# preference graph visualization with toolbox
