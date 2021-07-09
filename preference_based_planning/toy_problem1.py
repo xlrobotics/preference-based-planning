@@ -187,18 +187,6 @@ def test_transitions(mdp):
     assert mdp.transition[((0, 0, 0, 0, 9), 'W', (0, 0, 0, 1, 8))] == 0.25
 
 
-def inspect_transitions(mdp):
-    # Select uav_state of interest
-    state = (0, 0, 0, 0, 9)
-    transitions = set(filter(lambda sas_pair: sas_pair[0] == state, mdp.transition))
-
-    print()
-    print(f"MDP Outgoing Transition with state = {state}")
-    print("\t", f"Count = {len(transitions)}")
-    for sas_pair in transitions:
-        print("\t", f"{sas_pair}: {mdp.transition[sas_pair]}")
-
-
 def run_tests():
     # Load configuration file
     with open("toy_problem1.yaml", "r") as config_file:
