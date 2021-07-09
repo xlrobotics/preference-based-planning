@@ -140,6 +140,40 @@ class MDPGridWorld:
         return trans
 
 
+class PygameGridWorld:
+    def __init__(self, surface, mdp_game, p1_strategy):
+        self.game = mdp_game
+        self.p1_strategy = p1_strategy
+        self.surface = surface
+        self.curr_state = self.game.init_state
+
+    def generate_tiles(self):
+        pass
+
+    def draw(self):
+        pass
+
+    def update(self):
+        pass
+
+    def step_uav(self):
+        pass
+
+    def step_cloud(self):
+        pass
+
+    def is_game_over(self):
+        pass
+
+
+def generate_pref_aut():
+    pass
+
+
+def mdp_prefdfa_product(mdp, prod_aut):
+    pass
+
+
 def test_state_space(mdp):
     print("$ Testing MDP States")
     expect_size = (mdp.board_size[0] * mdp.board_size[1] * mdp.board_size[0] * mdp.board_size[0] * mdp.battery_cap) + \
