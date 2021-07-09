@@ -149,6 +149,18 @@ def test_state_space(mdp):
     assert len(mdp.states) == expect_size
 
 
+def inspect_transitions(mdp):
+    # Select uav_state of interest
+    state = (0, 0, 0, 0, 9)
+    transitions = set(filter(lambda sas_pair: sas_pair[0] == state, mdp.transition))
+
+    print()
+    print(f"MDP Outgoing Transition with state = {state}")
+    print("\t", f"Count = {len(transitions)}")
+    for sas_pair in transitions:
+        print("\t", f"{sas_pair}: {mdp.transition[sas_pair]}")
+
+
 def test_transitions(mdp):
     print("$ Testing MDP Transitions")
     print("\t",
