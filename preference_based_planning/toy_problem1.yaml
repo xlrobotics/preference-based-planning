@@ -3,13 +3,22 @@ graph_size:
   x: 4
   y: 4
 stations: [[0, 3], [3, 3]]
-UAV:
+uav:
   init_state: [1, 2]
   battery: 12
+  actions:
+    N: [1, 0]
+    E: [0, 1]
+    S: [-1, 0]
+    W: [0, -1]
+    STAY: [0, 0]
 clouds:
   maximal_stay_steps: 3
   positions: [[0, 1], [1, 0]]
   dynamics: 'random_walk'
+  actions:
+    N: [1, 0]
+    S: [-1, 0]
 targets: [[0, 0],[3, 0],[2, 1]]
 obstacles: []
 manual: True
