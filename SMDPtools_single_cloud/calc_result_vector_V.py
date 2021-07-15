@@ -1,10 +1,8 @@
-import yaml
 import pickle
-import json
 from tqdm import tqdm
 from MDP_learner_gridworld_cleaned import MDP
 from copy import deepcopy as dcp
-import logging
+
 
 IMPROVED = "improved"
 
@@ -26,7 +24,8 @@ def is_lt(mdp, v1, v2):
 
 def is_eq(mdp, v1, v2):
     """ Checks equality of vector value v1 is less than v2. """
-    return v1[0] == v2[0]
+    # PATCH: remove X3
+    return v1[0][:2] == v2[0][:2]
 
 
 def is_gt(mdp, v1, v2):
@@ -41,34 +40,41 @@ def is_gt(mdp, v1, v2):
     assert seq1 == seq2
     seq = seq1
 
+    # PATCH: remove X3
+    vec1 = vec1[:2]
+    vec2 = vec2[:2]
+
     # Logic to check v1 >= v2
     gt_flag = False
     for i in range(len(vec2)):  # Iterate over vec2
         # Get reachable preference states
         pref_state = seq[i]
-        if pref_state in mdp.dfa.pref_trans:
-            pref_successors = list(mdp.dfa.pref_trans[pref_state])
+        if pref_state in mdp.dfa.inv_pref_trans:
+            pref_successors = list(mdp.dfa.inv_pref_trans[pref_state])
         else:
             pref_successors = []
 
-        for succ in pref_successors:
-            j = seq.index(succ)
-            if vec1[j] < vec2[j]:  # Condition 1: for all j, vec1[j] >= vec2[j]
-                return False
+        if vec2[i] == vec1[i] == 0 or vec2[i] == vec1[i] == 1 or (vec2[i] == 0 and vec1[i] == 1):
+            continue
 
-            if vec1[j] > vec2[i]:  # Condition 2: there exists j s.t. vec1[j] > vec2[i]
-                gt_flag = True
+        # else: vec2[i] == 1 and vec1[i] == 0 --> means there must a higher preferred vec1[j] = 1.
+        if not any(vec1[seq.index(succ)] == 1 for succ in pref_successors):
+            return False
+        gt_flag = True
 
     # Return gt_flag after Condition 1 is checked for all possible cases in the loop.
     return gt_flag
 
-def Merge(dict1, dict2):
+
+def merge(dict1, dict2):
     res = {**dict1, **dict2}
     return res
 
+
 def construct_improvement_mdp(mdp):
     # Construct state set
-    states = mdp.S + [(s, IMPROVED) for s in mdp.S]
+    improved_states = {s + (IMPROVED, ) for s in mdp.S}
+    states = mdp.S + list(improved_states)
 
     # Construct edge set
     ndict = dict()
@@ -80,23 +86,19 @@ def construct_improvement_mdp(mdp):
             if not (state, act) in ndict:
                 ndict[(state, act)] = dict()
 
-            if not ((state, act), IMPROVED) in ndict:
-                ndict[((state, act), IMPROVED)] = dict()
-
-            # Xuan said 'fail' state is for debugging.
-            if isinstance(state, str) or isinstance(succ_state, str):
-                continue
+            if not (state + (IMPROVED, ), act) in ndict:
+                ndict[(state + (IMPROVED, ), act)] = dict()
 
             # Transition function (Definition 11) from paper.
             if is_gt(mdp, vector_value(mdp, succ_state), vector_value(mdp, state)):
                 prob = mdp.P[(state, act)][succ_state]
-                ndict[(state, act)].update({(succ_state, IMPROVED): prob})
-                ndict[((state, act), IMPROVED)].update({(succ_state, IMPROVED): prob})
+                ndict[(state, act)].update({succ_state + (IMPROVED, ): prob})
+                ndict[(state + (IMPROVED, ), act)].update({(succ_state + (IMPROVED, )): prob})
 
             elif is_eq(mdp, vector_value(mdp, succ_state), vector_value(mdp, state)):
                 prob = mdp.P[(state, act)][succ_state]
                 ndict[(state, act)].update({succ_state: prob})
-                ndict[((state, act), IMPROVED)].update({succ_state: prob})
+                ndict[(state + (IMPROVED, ), act)].update({succ_state: prob})
 
             else:
                 pass  # Do not add such an edge.
@@ -111,9 +113,9 @@ def construct_improvement_mdp(mdp):
     for pref_node in imdp.vector_V:
         temp = {}
         for state in imdp.vector_V[pref_node]:
-            improved_state = (state, IMPROVED)
+            improved_state = state + (IMPROVED, )
             temp[improved_state] = dcp(imdp.vector_V[pref_node][state])
-        imdp.vector_V[pref_node] = Merge(temp, imdp.vector_V[pref_node])
+        imdp.vector_V[pref_node] = merge(temp, imdp.vector_V[pref_node])
         # pass
 
     imdp.dfa = dcp(mdp.dfa)
@@ -123,7 +125,7 @@ def construct_improvement_mdp(mdp):
     for pref_node in imdp.ASR:
         temp = set()
         for state in imdp.ASR[pref_node]:
-            improved_state = (state, IMPROVED)
+            improved_state = state + (IMPROVED, )
             temp.add(improved_state)
         imdp.ASR[pref_node] = imdp.ASR[pref_node].union(temp)
 
@@ -132,248 +134,112 @@ def construct_improvement_mdp(mdp):
     return imdp
 
 
-def spi_strategy2(imdp, asw_strategy):
-    """
-    Alg. 1 from draft.
-    imdp: improvement mdp.
-    asw_strategy: dict of almost-sure strategies for each Xi \in \mathcal{X}.
-        Structure of asw_strategy: {
-                                        "X1": {"v1": {a1, a2}, "v2": {a1}...},
-                                        "X2": {"v1": {a1, a2}, "v2": {a1}...},
-                                    }
-    """
-    normal_states = [v for v in imdp.S if v[1] != IMPROVED]
-    improved_states = [v for v in imdp.S if v[1] == IMPROVED]
-
-    visited = list()
-    queue = [v for v in improved_states]  # Helps identify which states have +ve probability of improvement.
-    level = {v: 0 for v in improved_states}  # Needed to construct SPI strategy.
-    # FIXME: level with only improved_states only, might come across normal states later returned by the successors
-    pi = dict()
-
-    # Initialize SPI strategy for all states in imdp.
-    print(f"starting loop 1")
-    for v in tqdm(imdp.S):
-        # Assuming imdp construction assigns same vector values to v and (v, IMPROVED)
-        val, seq = vector_value(imdp, v)  # Copy vector value information to imdp. (duplicated, done)
-        if 1 in val:
-            idx = val.index(1)  # Choice of ASW strategy is arbitrary.
-            # if type(v[1]) == str:
-            #     print(v, v in normal_states)
-            if type(v[1]) != str and v in normal_states: #FIXME: add type(v[1]) != str to avoid value error
-                pi[v] = asw_strategy[seq[idx]][v]
-            else:
-                pi[v] = asw_strategy[seq[idx]][v[0]]
-        else:
-            pi[v] = set()
-
-    # Iteratively synthesize SPI strategy
-    print(f"starting while loop")
-    while len(queue) > 0:
-        print(len(queue), len(visited), "/", len(normal_states)*2)
-        v = queue.pop(0)    # FIXME: only contains improved states? (initially, yes. while loop may add other states.)
-        visited.append(v)
-        # pred = set(imdp.predecessors(v)) - set.union(set(queue), set(visited))
-        pred = imdp.predecessors(v) - set.union(set(queue), set(visited))  # predecessor function needed. (done) set returned
-        # FIXME: if pred is empty, this reduction will return empty set, is that correct? (yes.)
-
-        # Each predecessor has positive probability to reach improved_states. Add it to queue.
-        for p in pred:
-            # Book keeping for levels
-            k = level[v]
-            level[p] = k + 1
-            # If predecessor is not visited or queued, then add it to queue.
-            if p not in queue and p not in visited:
-                queue.append(p)
-
-        # Design SPI strategy at current state: v.
-        if type(v[1]) != str and v in normal_states: #FIXME: add type(v[1]) != str to avoid value error
-            spi_actions = set()
-
-            # An enabled action a at state v is SPI action iff all successors satisfy at least one of 2 conditions:
-            #   (i) level of successor s is smaller than v
-            #   (ii) successor s and v are ASW in same objective Xi, for which vector-value(v) = 1.
-
-            for a in imdp.enabled_actions(v):  # FIXME: enabled_actions function needed.
-                successors = imdp.successors(v, a)  # FIXME: successors function needed.
-                for s in successors:
-                    vec_s, _ = vector_value(imdp, s)
-                    vec_v, _ = vector_value(imdp, v)
-                    cond1 = True in [vec_s[i] == vec_v[i] for i in range(len(vec_v))]
-                    cond2 = level[s] < level[v]
-                    if cond1 or cond2:
-                        spi_actions.add(a)
-
-            # If spi actions are available, update them for both v and (v, IMPROVED) states.
-            # Else, pi[v] = pi[(v, IMPROVED)] = ASW(Xi) ... where ASW(Xi) is already initialized above.
-            if len(spi_actions) > 0:
-                pi[v] = spi_actions
-                pi[(v, IMPROVED)] = spi_actions
-
-    return pi
-
-
-def spi_strategy3(imdp, asw_strategy):
-    # Separate MDP states and improved-labeled states.
-    mdp_states = {v for v in imdp.S if v[1] != IMPROVED}
-    imp_states = {v for v in imdp.S if v[1] == IMPROVED}
-    print(f"mdp_states={len(mdp_states)}, imp_states={len(imp_states)}")
-
-    # Initialize local variables
-    visited = set()
-    frontier = list(dcp(imp_states))
-    level = {v: float("inf") for v in mdp_states}
-    level.update({v: 0 for v in imp_states})
-    pi = {v: set() for v in set.union(mdp_states, imp_states)}
-    print(f"visited={len(visited)}, frontier={len(frontier)}, level={len(level.keys())}")
-
-    while len(frontier) > 0:
-        # Select a state for visiting in this loop.
-        v = frontier.pop(0)
-        visited.add(v)
-
-        # Get predecessors of state. Update level of each predecessor.
-        pred = [p for p in imdp.predecessors(v) if (p not in frontier and p not in visited)]
-        for p in pred:
-            level[p] = level[v] + 1
-            frontier.append(p)
-
-        # If state is MDP state, process it further.
-        if v in mdp_states:
-            # Initialize variables to check conditions for identifying SPI actions
-            pos_imp_actions = set()
-            flag_cond1 = False
-            val_v, seq = vector_value(imdp, v)
-
-            # Identify SPI actions
-            for a in imdp.enabled_actions(v):
-                succ = imdp.successors(v, a)
-                for s in succ:
-                    val_s, _ = vector_value(imdp, s)
-
-                    if level[s] < level[v]:
-                        flag_cond1 = True
-                        pos_imp_actions.add(a)
-                    elif any([val_s[i] == val_v[i] for i in range(len(val_s))]):
-                        pos_imp_actions.add(a)
-                    else:
-                        pos_imp_actions.remove(a)
-                        flag_cond1 = False
-                        break       # continue exploring next action
-
-            if len(pos_imp_actions) > 0 and flag_cond1:
-                pi[v] = pos_imp_actions
-            elif any([val_v[i] == 1 for i in range(len(val_v))]):
-                idx = val_v.index(1)
-                pi[v] = asw_strategy[seq[idx]][v]
-            else:
-                pi[v] = set()
-
-        # Define SPI strategy for "improve"-labeled states
-        for v, imp in imp_states:
-            pi[(v, imp)] = pi[v]
-
-        # Return SPI strategy
-        return pi
-
-
-def spi_strategy(imdp, asw_strategy, mode='read'):
+def spi_strategy(imdp):
     # Initialize strategy, level dictionaries
     spi = dict()
     level = dict()
     for v in imdp.S:
         spi[v] = set()
-        if v[1] == IMPROVED:
+        if len(v) == 3:
             level[v] = 0
         else:
             level[v] = float("inf")
 
     # Initialize queue and visited set
     visited = set()
-    frontier = [v for v in imdp.S if v[1] == IMPROVED]
+    frontier = [v for v in imdp.S if len(v) == 3]
+    # frontier = frontier[1000:1400]    # debug
 
-    if mode == 'write':
-        while len(frontier) > 0:
-            v = frontier.pop(0)
-            logging.warning('Frontier size: %s, visited size: %s, current state: %s', len(frontier), len(visited), v)
-            visited.add(v)
-            pre_v = imdp.predecessors(v)
-            for u, a in pre_v:
-                if u not in frontier and u not in visited and u[1] != IMPROVED:
-                    level[u] = level[v] + 1
-                    frontier.append(u)
-                if level[v] < level[u]:
-                    spi[u].add(a)
-                    spi[(u, IMPROVED)].add(a)
+    # print(f"Starting BFS-visitation: |frontier|={len(frontier)}, |visited|={len(visited)}, |V|={len(imdp.S)}")
+    pbar = tqdm(imdp.S)
+    # while len(frontier) > 0:
+    for _ in pbar:
+        # pbar.update()
+        if len(frontier) == 0:
+            break
 
-        with open('temp_spi.pkl', 'wb') as pkl_file:
-            pickle.dump(spi, pkl_file)
-    elif mode == 'read':
-        with open('temp_spi.pkl', 'rb') as in_file:
-            spi = pickle.load(in_file)
+        pbar.set_description(f"|frontier|={len(frontier)}, |visited|={len(visited)}, |V|={len(imdp.S)}")
 
+        v = frontier.pop(0)
+        visited.add(v)
+        pre_v = imdp.predecessors(v)
+        # if len(pre_v) > 0:
+        #     print(f"Visiting: {v}, pred: {pre_v}")
+
+        for u, a in pre_v:
+            if level[u] == float("inf") and len(u) != 3:
+                level[u] = level[v] + 1
+                frontier.append(u)
+
+                # print(f"Visiting: {v}, Add {u} to frontier.")
+
+            if level[v] < level[u] != float("inf"):
+                spi[u].add(a)
+                spi[u + (IMPROVED,)].add(a)
+                # print(f"Visiting: {v}, spi[{u}]={spi[u]}")
+
+    print(f"Generate SPI strategy for States from which Positively Improving Actions do NOT exist.")
     for v in imdp.S:
         if len(spi[v]) == 0:
-            try:
-                val_v, seq = vector_value(imdp, v)
-                idx_1 = val_v.index(1)
-                spi[v] = asw_strategy[seq[idx_1]][v]
-                spi[(v, IMPROVED)] = asw_strategy[seq[idx_1]][v]
-            except ValueError:
-                continue
-            except KeyError:
-                continue
-            except TypeError:
-                logging.error('seq %s turns to be Nonetype',seq)
-                # print(val_v)
+            spi[v] = imdp.enabled_actions(v, "toy")
+            if len(v) != 3:
+                spi[v + (IMPROVED,)] = imdp.enabled_actions(v, "toy")
 
     return spi
 
 
-def calc_asw_pi(mdp):
-    """
-    Structure of asw_strategy: {
-                                    "X1": {"v1": {a1, a2}, "v2": {a1}...},
-                                    "X2": {"v1": {a1, a2}, "v2": {a1}...},
-                                }
-    """
-    asw_strategy = {pref_st: dict() for pref_st in mdp.ASR.keys()}
-    for pref_st in asw_strategy:
-        for v in mdp.ASR[pref_st]:
-            if v not in asw_strategy[pref_st]: #FIXME: add entry even it is empty, otherwise the asw_strategy might have key error
-                asw_strategy[pref_st][v] = set()
-            for a in mdp.enabled_actions(v):
-                successors = mdp.successors(v, a)
-                if set.issubset(successors, set(mdp.ASR[pref_st])): #len(successors)
-                    if v not in asw_strategy[pref_st]:
-                        asw_strategy[pref_st][v] = set()
-                    if len(successors):
-                        asw_strategy[pref_st][v].add(a)
-            # print(asw_strategy[pref_st][v])
-                else:
-                    if v not in asw_strategy[pref_st]:
-                        asw_strategy[pref_st][v] = set()
-                # else: # for debugging
-                #     print(successors, set(mdp.ASR[pref_st]))
-                #     print("=================================")
-    return asw_strategy
-
-
 if __name__ == '__main__':
-    # mdp = None
+    # with open("prod_MDP_verifying_example_weak.pkl", 'rb') as pkl_file:  # pkl
+    #     mdp = pickle.load(pkl_file)
+
     with open("prod_MDP_gridworld_v2.pkl", 'rb') as pkl_file:  # pkl
         mdp = pickle.load(pkl_file)
 
-    # print(mdp)
-    # print(vector_value(mdp, ((0, 0, 0, 0, 0), 14)))
+    # print()
+    # print("DEBUG: Product MDP transitions")
+    # dfa_state_dict = {0: (0, 0), 1: (0, 1), 2: (1, 0), 3: (1, 1)}
+    # S_dict = {0: 'A', 1: 'B', 2: 'C'}  # check google slide page 13
+    #
+    # for ((mdp_state, dfa_state), act), trans_dict in mdp.P.items():
+    #     for (next_mdp_state, next_dfa_state), prob in trans_dict.items():
+    #         print(f"{(S_dict[mdp_state], dfa_state_dict[dfa_state])} -- {act}, {prob} --> "
+    #               f"{(S_dict[next_mdp_state], dfa_state_dict[next_dfa_state])}")
+    #
+    # print()
+    # print("DEBUG: Vector Values")
+    # for state in mdp.S:
+    #     print(f"Val({(S_dict[state[0]], dfa_state_dict[state[1]])} = {vector_value(mdp, state)[0]}")
+
+    # Construct improvement MDP
     imdp = construct_improvement_mdp(mdp)
-    print("okay")
+    # print()
+    # print("DEBUG: Improvement MDP transition function")
+    # for (state, act), trans_dict in imdp.P.items():
+    #     for next_state, prob in trans_dict.items():
+    #         print(f"{(S_dict[state[0]], dfa_state_dict[state[1]]) + state[2:]} -- {act}, {prob} --> "
+    #               f"{(S_dict[next_state[0]], dfa_state_dict[next_state[1]]) + next_state[2:]}")
 
-    asw_strategy = calc_asw_pi(imdp)
-    # print("asw_strategy done.")
-    # pi = spi_strategy(imdp, asw_strategy)
-    pi = spi_strategy(imdp, asw_strategy, 'write')
-    print("spi_strategy done.")
+    # print()
+    # print("DEBUG: Comparing vector values")
+    # u = (2, 2)
+    # v = (1, 2)
+    # print(f"Val({(S_dict[u[0]], dfa_state_dict[u[1]])} > Val({(S_dict[v[0]], dfa_state_dict[v[1]])} = "
+    #       f"{is_gt(mdp, vector_value(mdp, u), vector_value(mdp, v))}")
 
-    with open("PI_prod_MDP_gridworld_v2.pkl", 'wb') as pkl_file: #pkl
+    # Construction of SPI strategy
+    # Remark. pi((x, y)) -> x: 0: A, 1: B, 2: C and y: (0,0): 0, (0, 1): 1, (1, 0): 2, (1, 1): 3.
+    pi = spi_strategy(imdp)
+    # print()
+    # print("DEBUG: SPI strategy")
+    # for state, strategy in pi.items():
+    #     print(f"{(S_dict[state[0]], dfa_state_dict[state[1]]) + state[2:]}: {strategy}")
+
+    # with open("PI_prod_MDP_verifying_example.pkl", 'wb') as pkl_file:  # pkl
+    #     pickle.dump(pi, pkl_file)
+
+    with open("PI_prod_MDP_gridworld_v2.pkl", 'wb') as pkl_file:  # pkl
         pickle.dump(pi, pkl_file)
+
+
+
+    pass

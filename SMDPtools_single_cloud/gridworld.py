@@ -247,7 +247,7 @@ class Grid_World():
         if self.cloud_dynamics == 'random_walk':
             for i in range(len(self.cloud_coords)):
 
-                act = random.choice([-1, 1])
+                act = random.choice([-1, 1])  # 0.5 probability of choosing each action
                 self.cloud_stay_counter[i] = 0
 
                 if act == 0:
@@ -397,10 +397,13 @@ if __name__ == "__main__":
 
     init_obs = board.get_current_state_old()
     # init_obs = board.get_current_state()
+    for key in pi:
+        if len(pi[key]) > 0:
+            print(pi[key])
 
-    init_q = 13
-    init_obs[3] = 11
-    act_set = pi[tuple([tuple([tuple(init_obs), init_q]), 'improved'])]
+    init_q = 0
+    init_obs[3] = board.battery_cap - 1
+    act_set = pi[tuple([tuple(init_obs), init_q, 'improved'])]
     gameOver = False
 
     if len(act_set) == 0:
@@ -439,7 +442,7 @@ if __name__ == "__main__":
             act_set, act, old_pos, new_pos, board.trapped, trans, obs, model.dfa.pref_labels[current_q])
         board.update()
 
-        act_set = pi[tuple([tuple([tuple(obs), current_q]), 'improved'])]
+        act_set = pi[tuple([tuple(obs), current_q, 'improved'])]
         if not gameOver:
             if len(act_set) == 0:
                 print('failing state detected, task terminated', obs)

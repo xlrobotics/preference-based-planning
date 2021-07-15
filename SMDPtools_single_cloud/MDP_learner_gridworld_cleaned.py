@@ -68,7 +68,7 @@ class MDP:
         self.S = [] # state space e.g. [[0,0],[0,1]...]
         self.init_S = []
         self.originS = []
-        self.wall_cord = [] # wall state space, e.g. if state space is [[1,1]], wall is [[1,2], [2,1], [1,0], [0,1]]
+        self.unsafe = []  # unsafe state space, e.g. if state space is [[1,1]], wall is [[1,2], [2,1], [1,0], [0,1]]
         self.L = {} # labeling function
         self.Exp = {} # another way to store labeling pairs
         self.goal = [] # goal state set
@@ -87,6 +87,7 @@ class MDP:
         self.init_V, self.init_V_ = {}, {} # store initial value function
 
         self.vector_V = {}
+        self.vector_V_ancestor_status = {}
 
         self.Q, self.Q_ = {}, {} # state action value function
         self.T = {} # terminal states
@@ -154,12 +155,12 @@ class MDP:
     # Tool: a small math tool for the state space cross product
     def crossproduct(self, a, b):
         cross_states = [(tuple(y), x) for x in a for y in b]
-        print(cross_states)
+        # print(cross_states)
         return cross_states
 
     def crossproduct2(self, a, b):
         cross_states = [(y, x) for x in a for y in b]
-        print(cross_states)
+        # print(cross_states)
         return cross_states
 
     # secondary API, called by def pos_reachability, used to return next reachable states with probability > 0
@@ -174,13 +175,16 @@ class MDP:
         return set(next_set)
 
     # secondary API: called by function def product(), return the ASR of the product mdp
-    def AS_reachability(self, F):
+    def AS_reachability(self, F, flag):
         # almost sure reaching the set F.
         # alg: compute the set of states from which the agent can stay with probability one, and has a positive probability of reaching F (in multiple steps).
+        A = self.A_simple if flag == 'toy' else self.A
+
+
         X0 = set(self.S)
 
         counter = 0
-        print(X0)
+        # print(X0)
         while True:
             Y0 = set(F)
             Y1 = dcp(Y0)
@@ -191,8 +195,8 @@ class MDP:
                 # print("UPDATED: ", Y1, "|||", Y0)
                 for s in X0:
                     # print("UPDATED: ", Y1)
-                    for a in self.A_simple: # TODO: action_special is for the toy, for gridworld need to modify it
-                        reachableStates = self.nextStateSet(s, a)  # TODO: computing the next states that can be reached with probability >0.
+                    for a in A:
+                        reachableStates = self.nextStateSet(s, a)   #  TODO: computing the next states that can be reached with probability >0.
 
                         # if reachableStates.issubset(X0) and reachableStates.intersect(Y1) != set([]):
                         if reachableStates <= X0 and bool(reachableStates.intersection(Y1)):
@@ -213,8 +217,8 @@ class MDP:
         result = set()
         for key in self.P:
             if v in self.P[key] and self.P[key][v] > 0:
-                if key[1] == 'improved':
-                    result.add(key[0])
+                if len(key[0]) == 3:
+                    result.add(key)
                 else:
                     result.add(key)
 
@@ -230,9 +234,10 @@ class MDP:
         return result
         # return list(result)
 
-    def enabled_actions(self, v): # v as a state
+    def enabled_actions(self, v, flag='toy'): # v as a state
         result = set()
-        for a in self.A:
+        A = self.A_simple if flag == 'toy' else self.A
+        for a in A:
             flag = False
             if tuple([tuple(v), a]) in self.P:
                 for v_ in self.P[tuple(v), a]:
@@ -255,10 +260,13 @@ class MDP:
 
         visited = []  # List to keep track of visited nodes.
         queue = []  # Initialize a queue
-        for key in self.dfa.inv_pref_labels.keys():
-            if key not in self.dfa.pref_trans and key not in visited and key not in queue: # key=“I” in the example
+
+        # inv_pref_trans: key < item
+        for key in self.dfa.inv_pref_labels.keys():  # just to traverse all pref nodes
+            if (key not in self.dfa.inv_pref_trans or len(self.dfa.inv_pref_trans[key]) == 0) and key not in visited and key not in queue: # key=“I” in the example
                 visited.append(key)
                 queue.append(key)
+
 
         while queue:
             i = queue.pop(0)
@@ -266,22 +274,28 @@ class MDP:
             # print(s, i, visited, queue)
             if s in self.ASR[i]: # start from mostly preferred node in the graph (top), e.g. node "I" - q=8
                 self.vector_V[i][s] = 1
-                if i in self.dfa.pref_trans:
-                    for j in self.dfa.pref_trans[i]:
-                        if s in self.vector_V[j] and self.vector_V[j][s] == 1 and i not in self.dfa.pref_trans[j]: # j in i and i in j means i,j are equivalent
+                self.vector_V_ancestor_status[i][s] = 0
+
+                if i in self.dfa.inv_pref_trans:
+                    for j in self.dfa.inv_pref_trans[i]:  # looking at ancestors
+                        if ((s in self.vector_V[j] and self.vector_V[j][s] == 1) or (s in self.vector_V_ancestor_status[j] and self.vector_V_ancestor_status[j][s] == 1)) \
+                                and i not in self.dfa.inv_pref_trans[j]: # j in i and i in j means i,j are equivalent
                             self.vector_V[i][s] = 0
+                            self.vector_V_ancestor_status[i][s] = 1
                             break
 
                     # no matter i is 1 or 0
-                    if i in self.dfa.inv_pref_trans:
-                        for k in self.dfa.inv_pref_trans[i]: # check if there were less preferred nodes visited already due to the topology
-                            if s in self.vector_V[k] and self.vector_V[k][s] == 1 and i not in self.dfa.inv_pref_trans[k] and self.vector_V[k][s] == 1: # j in i and i in j means i,j are equivalent
+                    if i in self.dfa.pref_trans:  # looking at direct decendants
+                        for k in self.dfa.pref_trans[i]:  # check if there were less preferred nodes visited already due to the topology
+                            if ((s in self.vector_V[k] and self.vector_V[k][s] == 1) or (s in self.vector_V_ancestor_status[k] and self.vector_V_ancestor_status[k][s] == 1)) \
+                                    and i not in self.dfa.pref_trans[k] and self.vector_V[k][s] == 1: # j in i and i in j means i,j are equivalent
                                 self.vector_V[k][s] = 0
+                                self.vector_V_ancestor_status[k][s] = 1
             else:
                 self.vector_V[i][s] = 0
 
-            if i in self.dfa.inv_pref_trans:
-                for child in self.dfa.inv_pref_trans[i]:
+            if i in self.dfa.pref_trans: # inverse pref trans to for lower preference relation: key > item
+                for child in self.dfa.pref_trans[i]:
                     # print(child, visited)
                     if child not in visited:
                         visited.append(child)
@@ -290,36 +304,43 @@ class MDP:
 
 
     # API: DFA * MDP product
-    def product(self, dfa, mdp):
+    def product(self, dfa, mdp, flag = 'toy'):
         result = MDP(self.transition_file)
         result.Exp = dcp(mdp.Exp)
         result.L = self.L
 
         filtered_S = []
         for s in mdp.S:  #new_S
-            if mdp.L[tuple(s)][0] != 'sink' and s not in filtered_S: # new_wall
+            if type(s) is not int: s=tuple(s)
+            if mdp.L[s][0] != 'dead' and s not in filtered_S: # exclude unsafe states
                 filtered_S.append(s)
 
         removing_states = []
-        # for s in tqdm(filtered_S):
-        #     for transition in self.P:
-        #         if s == transition[0] and transition[2] not in filtered_S and self.P[transition] > 0:
-        #             removing_states.append(s)
+        for s in tqdm(filtered_S):
+            for transition in self.P:
+                if s == transition[0] and transition[2] not in filtered_S and self.P[transition] > 0:
+                    removing_states.append(s)
 
 
         filtered_S = dcp(list(set(filtered_S)-set(removing_states)))
         result.originS = dcp(filtered_S)
 
-        result.init_S = self.crossproduct(list([dfa.initial_state]), mdp.Exp['phi'])
+        if flag == 'toy':
+            result.init_S = self.crossproduct2(list([dfa.initial_state]), mdp.Exp['1'])
+            new_success = self.crossproduct2(list(dfa.final_states - dfa.sink_states), filtered_S)
 
-        new_success = self.crossproduct(list(dfa.final_states - dfa.sink_states), filtered_S)
-        new_fail = self.crossproduct(list(dfa.sink_states), filtered_S)
+            # calculate F states for each pref node:
+            for key in dfa.inv_pref_labels.keys():
+                if key not in result.ASF:
+                    result.ASF[key] = result.crossproduct2(dfa.inv_pref_labels[key], filtered_S)
+        else:
+            result.init_S = self.crossproduct(list([dfa.initial_state]), mdp.Exp['!(a|b|c|base|dead)'])
+            new_success = self.crossproduct(list(dfa.final_states - dfa.sink_states), filtered_S)
 
-        # calculate F states for each pref node:
-        for key in dfa.inv_pref_labels.keys():
-            if key not in result.ASF:
-                # result.ASF[key] = result.crossproduct2(dfa.inv_pref_labels[key], filtered_S)
-                result.ASF[key] = result.crossproduct(dfa.inv_pref_labels[key], filtered_S)
+            # calculate F states for each pref node:
+            for key in dfa.inv_pref_labels.keys():
+                if key not in result.ASF:
+                    result.ASF[key] = result.crossproduct(dfa.inv_pref_labels[key], filtered_S)
 
         result.success = new_success[:]
 
@@ -327,7 +348,6 @@ class MDP:
 
         true_new_s = []
 
-        total = len(mdp.P.keys())
         counter = 0
         seen_sink=[]
 
@@ -335,9 +355,7 @@ class MDP:
             for p in tqdm(mdp.P.keys()):
                 counter += 1
 
-                # logging.warning("processing key: %s, progress(%s/%s)", p, counter, total)
-
-                if p[0] in self.wall_cord:
+                if p[0] in self.unsafe:
                     if p[0] not in seen_sink:
                         logging.warning("sink state %s encountered, so far %s/224", p[0], len(seen_sink))
                         seen_sink.append(p[0])
@@ -359,12 +377,12 @@ class MDP:
 
                     if q not in dfa.final_states and mdp.L[p[0]][0] in dfa.final_transitions: # initial state not allowed with final states of dfa
                         continue
-
-                    if q in dfa.sink_states and mdp.L[p[0]][0] != 'failure': # cannot get out after entering sink state
-                        continue
-
-                    if mdp.L[p[0]][0] == 'failure' and q not in dfa.sink_states:
-                        continue
+                    #
+                    # if q in dfa.sink_states and mdp.L[p[0]][0] != 'sink': # cannot get out after entering sink state
+                    #     continue
+                    #
+                    # if mdp.L[p[0]][0] == 'sink' and q not in dfa.sink_states:
+                    #     continue
 
                     new_s = (p[0], q)
                     new_a = p[1]
@@ -386,11 +404,6 @@ class MDP:
                             if tuple(new_s_) not in true_new_s:
                                 true_new_s.append(tuple(new_s_))
 
-                            # if new_s_ in new_success and new_P[new_s, new_a][new_s_]>0 and new_s_[1] in dfa.pref_labels: # tagging, debug step, delete after check correct
-                            #     new_P[new_s, new_a][sink] = dfa.pref_labels[new_s_[1]]
-                            #
-                            # if new_s_ in new_fail and new_P[new_s, new_a][new_s_]>0: # tagging, debug step, delete after check correct
-                            #     new_P[new_s, new_a][fail] = 1
 
                     if new_s not in true_new_s:
                         true_new_s.append(tuple(new_s))
@@ -407,12 +420,135 @@ class MDP:
 
         for key in result.ASF.keys():
             if key not in result.ASR:
-                result.ASR[key] = result.AS_reachability(result.ASF[key])
-
+                result.ASR[key] = result.AS_reachability(result.ASF[key], flag)
                 result.vector_V[key] = {}
-                # for s in result.ASR[key]:
-                #     if s not in result.V[key]:
-                #         result.V[key][s] = 0
+                result.vector_V_ancestor_status[key] = {}
+
+        for s in result.S:
+            result.init_ASR_V(s)
+
+
+        return result
+
+    def product_weak(self, dfa, mdp, flag = 'toy'):
+        result = MDP(self.transition_file)
+        result.Exp = dcp(mdp.Exp)
+        result.L = self.L
+
+        filtered_S = []
+        for s in mdp.S:  #new_S
+            if type(s) is not int: s=tuple(s)
+            if mdp.L[s][0] != 'sink' and s not in filtered_S: # new_wall
+                filtered_S.append(s)
+
+        removing_states = []
+        for s in tqdm(filtered_S):
+            for transition in self.P:
+                if s == transition[0] and transition[2] not in filtered_S and self.P[transition] > 0:
+                    removing_states.append(s)
+
+
+        filtered_S = dcp(list(set(filtered_S)-set(removing_states)))
+        result.originS = dcp(filtered_S)
+
+        if flag == 'toy':
+            result.init_S = self.crossproduct2(list([dfa.initial_state]), mdp.Exp['1'])
+            new_success = self.crossproduct2(list(dfa.final_states - dfa.sink_states), filtered_S)
+
+            # calculate F states for each pref node:
+            for key in dfa.inv_pref_labels.keys():
+                if key not in result.ASF:
+                    result.ASF[key] = result.crossproduct2(dfa.inv_pref_labels[key], filtered_S)
+        else:
+            result.init_S = self.crossproduct(list([dfa.initial_state]), mdp.Exp['phi'])
+            new_success = self.crossproduct(list(dfa.final_states - dfa.sink_states), filtered_S)
+
+            # calculate F states for each pref node:
+            for key in dfa.inv_pref_labels.keys():
+                if key not in result.ASF:
+                    result.ASF[key] = result.crossproduct(dfa.inv_pref_labels[key], filtered_S)
+
+        result.success = new_success[:]
+
+        new_P = {}
+
+        true_new_s = []
+
+        counter = 0
+        seen_sink=[]
+
+        if len(self.transition_file) == 0:
+            for p in tqdm(mdp.P.keys()):
+                counter += 1
+
+                if p[0] in self.unsafe:
+                    if p[0] not in seen_sink:
+                        logging.warning("sink state %s encountered, so far %s/224", p[0], len(seen_sink))
+                        seen_sink.append(p[0])
+                    for q in dfa.sink_states:
+                        new_s = (p[0], q)
+                        new_a = p[1]
+                        new_s_ = (p[2], q)
+                        if (new_s, new_a) not in new_P:
+                            new_P[new_s, new_a] = {}
+                        new_P[new_s, new_a][new_s_] = mdp.P[p]
+
+                        if new_s not in true_new_s:
+                            true_new_s.append(tuple(new_s))
+                    continue
+
+                for q in dfa.states:
+                    if p[0]==1 and p[2]==0 and q == 1:
+                        pass
+
+                    if q not in dfa.final_states and mdp.L[p[0]][0] in dfa.final_transitions: # initial state not allowed with final states of dfa
+                        continue
+                    #
+                    # if q in dfa.sink_states and mdp.L[p[0]][0] != 'sink': # cannot get out after entering sink state
+                    #     continue
+                    #
+                    # if mdp.L[p[0]][0] == 'sink' and q not in dfa.sink_states:
+                    #     continue
+
+                    new_s = (p[0], q)
+                    new_a = p[1]
+                    if (new_s, new_a) not in new_P:
+                        new_P[new_s, new_a] = {}
+
+                    for label in mdp.L[p[2]]:
+                        if tuple([label, q]) in dfa.state_transitions.keys():
+                            q_ = dfa.state_transitions[label, q] # p[0]
+
+                            new_s_ = (p[2], q_)
+                            if q == q_: # dfa state equals to transition state after reaching the labelled state in mdp
+                                if new_s_ not in new_P[new_s, new_a]:
+                                    new_P[new_s, new_a][new_s_] = mdp.P[p]
+                            else:
+                                new_P[new_s, new_a][new_s_] = mdp.P[p]
+
+
+                            if tuple(new_s_) not in true_new_s:
+                                true_new_s.append(tuple(new_s_))
+
+
+                    if new_s not in true_new_s:
+                        true_new_s.append(tuple(new_s))
+
+
+        result.set_S(true_new_s)
+
+        result.P = dcp(new_P)
+
+        result.T = dcp(new_success)
+
+        result.dfa = dcp(dfa)
+        result.mdp = dcp(mdp)
+
+        for key in result.ASF.keys():
+            if key not in result.ASR:
+                result.ASR[key] = result.AS_reachability(result.ASF[key], flag)
+                result.vector_V[key] = {}
+                result.vector_V_ancestor_status[key] = {}
 
         for s in result.S:
             result.init_ASR_V(s)
@@ -422,18 +558,18 @@ class MDP:
 
     # Init: preparation for 1 step transition probability generation, not important
     def add_wall(self, inners):
-        wall_cords = []
+        unsafes = []
         for state in inners:
             # for action in self.A:
             #     temp = list(np.array(state) + np.array(self.A[action]))
             #     if temp not in inners:
-            wall_cords.append(state)
-        return wall_cords
+            unsafes.append(state)
+        return unsafes
 
     # Init: preparation for 1 step transition probability generation, not important
-    def set_WallCord(self, wall_cord):
-        for element in wall_cord:
-            self.wall_cord.append(element)
+    def set_unsafe(self, unsafe):
+        for element in unsafe:
+            self.unsafe.append(element)
             # if element not in self.S:
             #     self.S.append(element)
 
@@ -472,14 +608,14 @@ class MDP:
         self.P = {}
         filtered_S = []
         for s in self.S:  # new_S
-            if s not in self.wall_cord:  # new_wall
+            if s not in self.unsafe:  # new_wall
                 filtered_S.append(s)
         self.S = filtered_S  # 0 battery cases should be filtered out from this step
 
         # cloud dynamics random walk, up, down, stay
         cloud_acts = [-1, 1]
 
-        for state in self.wall_cord:  # the transition will be frozen when the battery is 0, even the clouds should not move
+        for state in self.unsafe:  # the transition will be frozen when the battery is 0, even the clouds should not move
             s = tuple(state)
             for a in self.A.keys():
                 self.P[s, a, s] = 1.0
