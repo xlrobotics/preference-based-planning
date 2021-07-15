@@ -261,7 +261,7 @@ class MDP:
         visited = []  # List to keep track of visited nodes.
         queue = []  # Initialize a queue
 
-        # pref_trans: key < item
+        # inv_pref_trans: key < item
         for key in self.dfa.inv_pref_labels.keys():  # just to traverse all pref nodes
             if (key not in self.dfa.inv_pref_trans or len(self.dfa.inv_pref_trans[key]) == 0) and key not in visited and key not in queue: # key=“I” in the example
                 visited.append(key)
@@ -305,6 +305,132 @@ class MDP:
 
     # API: DFA * MDP product
     def product(self, dfa, mdp, flag = 'toy'):
+        result = MDP(self.transition_file)
+        result.Exp = dcp(mdp.Exp)
+        result.L = self.L
+
+        filtered_S = []
+        for s in mdp.S:  #new_S
+            if type(s) is not int: s=tuple(s)
+            if mdp.L[s][0] != 'sink' and s not in filtered_S: # new_wall
+                filtered_S.append(s)
+
+        removing_states = []
+        for s in tqdm(filtered_S):
+            for transition in self.P:
+                if s == transition[0] and transition[2] not in filtered_S and self.P[transition] > 0:
+                    removing_states.append(s)
+
+
+        filtered_S = dcp(list(set(filtered_S)-set(removing_states)))
+        result.originS = dcp(filtered_S)
+
+        if flag == 'toy':
+            result.init_S = self.crossproduct2(list([dfa.initial_state]), mdp.Exp['1'])
+            new_success = self.crossproduct2(list(dfa.final_states - dfa.sink_states), filtered_S)
+
+            # calculate F states for each pref node:
+            for key in dfa.inv_pref_labels.keys():
+                if key not in result.ASF:
+                    result.ASF[key] = result.crossproduct2(dfa.inv_pref_labels[key], filtered_S)
+        else:
+            result.init_S = self.crossproduct(list([dfa.initial_state]), mdp.Exp['phi'])
+            new_success = self.crossproduct(list(dfa.final_states - dfa.sink_states), filtered_S)
+
+            # calculate F states for each pref node:
+            for key in dfa.inv_pref_labels.keys():
+                if key not in result.ASF:
+                    result.ASF[key] = result.crossproduct(dfa.inv_pref_labels[key], filtered_S)
+
+        result.success = new_success[:]
+
+        new_P = {}
+
+        true_new_s = []
+
+        counter = 0
+        seen_sink=[]
+
+        if len(self.transition_file) == 0:
+            for p in tqdm(mdp.P.keys()):
+                counter += 1
+
+                if p[0] in self.wall_cord:
+                    if p[0] not in seen_sink:
+                        logging.warning("sink state %s encountered, so far %s/224", p[0], len(seen_sink))
+                        seen_sink.append(p[0])
+                    for q in dfa.sink_states:
+                        new_s = (p[0], q)
+                        new_a = p[1]
+                        new_s_ = (p[2], q)
+                        if (new_s, new_a) not in new_P:
+                            new_P[new_s, new_a] = {}
+                        new_P[new_s, new_a][new_s_] = mdp.P[p]
+
+                        if new_s not in true_new_s:
+                            true_new_s.append(tuple(new_s))
+                    continue
+
+                for q in dfa.states:
+                    if p[0]==1 and p[2]==0 and q == 1:
+                        pass
+
+                    if q not in dfa.final_states and mdp.L[p[0]][0] in dfa.final_transitions: # initial state not allowed with final states of dfa
+                        continue
+                    #
+                    # if q in dfa.sink_states and mdp.L[p[0]][0] != 'sink': # cannot get out after entering sink state
+                    #     continue
+                    #
+                    # if mdp.L[p[0]][0] == 'sink' and q not in dfa.sink_states:
+                    #     continue
+
+                    new_s = (p[0], q)
+                    new_a = p[1]
+                    if (new_s, new_a) not in new_P:
+                        new_P[new_s, new_a] = {}
+
+                    for label in mdp.L[p[2]]:
+                        if tuple([label, q]) in dfa.state_transitions.keys():
+                            q_ = dfa.state_transitions[label, q] # p[0]
+
+                            new_s_ = (p[2], q_)
+                            if q == q_: # dfa state equals to transition state after reaching the labelled state in mdp
+                                if new_s_ not in new_P[new_s, new_a]:
+                                    new_P[new_s, new_a][new_s_] = mdp.P[p]
+                            else:
+                                new_P[new_s, new_a][new_s_] = mdp.P[p]
+
+
+                            if tuple(new_s_) not in true_new_s:
+                                true_new_s.append(tuple(new_s_))
+
+
+                    if new_s not in true_new_s:
+                        true_new_s.append(tuple(new_s))
+
+
+        result.set_S(true_new_s)
+
+        result.P = dcp(new_P)
+
+        result.T = dcp(new_success)
+
+        result.dfa = dcp(dfa)
+        result.mdp = dcp(mdp)
+
+        for key in result.ASF.keys():
+            if key not in result.ASR:
+                result.ASR[key] = result.AS_reachability(result.ASF[key], flag)
+                result.vector_V[key] = {}
+                result.vector_V_ancestor_status[key] = {}
+
+        for s in result.S:
+            result.init_ASR_V(s)
+
+
+        return result
+
+    def product_weak(self, dfa, mdp, flag = 'toy'):
         result = MDP(self.transition_file)
         result.Exp = dcp(mdp.Exp)
         result.L = self.L

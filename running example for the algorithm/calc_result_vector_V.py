@@ -181,9 +181,9 @@ def spi_strategy(imdp):
     print(f"Generate SPI strategy for States from which Positively Improving Actions do NOT exist.")
     for v in imdp.S:
         if len(spi[v]) == 0:
-            spi[v] = imdp.enabled_actions(v)
+            spi[v] = imdp.enabled_actions(v, "toy")
             if len(v) != 3:
-                spi[v + (IMPROVED,)] = imdp.enabled_actions(v)
+                spi[v + (IMPROVED,)] = imdp.enabled_actions(v, "toy")
 
     return spi
 

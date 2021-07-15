@@ -83,14 +83,17 @@ if __name__ == "__main__":
 
     dfa.pref_labeling(1, 'X1')  # visiting b
     dfa.pref_labeling(2, 'X2')  # visiting c
-    dfa.pref_labeling(0, 'X3')  # visiting b & visiting c in any order
     dfa.pref_labeling(3, 'X3')  # not visiting any places
+    # Select WEAK/STRICT
+    # dfa.pref_labeling(0, 'X3')  # visiting b & visiting c in any order        (STRICT)
+    dfa.pref_labeling(0, 'X1')  # visiting b & visiting c in any order
 
     dfa.add_pref_trans('X1', 'X2')  # preference edge X2 is more preferred
 
     dfa.inv_pref_labels = inv_dict(dfa.pref_labels)
     dfa.inv_pref_trans = inv_dict2(dfa.pref_trans)
     dfa.pref_trans['X2'] = []
+    dfa.inv_pref_trans['X1'] = []
 
     # Select one of the following: Constructs Preference DFA for strict or weak formula
     dfa_add_trans_weak(dfa)
@@ -149,7 +152,8 @@ if __name__ == "__main__":
     mdp.set_Exp(q_s)    # L^-1: inverse of L (L: Q -> S), e.g. self.Exp['g1'] = (2, 3)
 
     curve = dict()
-    result = mdp.product(dfa, mdp, flag='toy')
+    # result = mdp.product(dfa, mdp, flag='toy')            # For Strict Preference
+    result = mdp.product_weak(dfa, mdp, flag='toy')         # For Weak Preference
     result.plotKey = False
 
     with open("prod_MDP_verifying_example_weak.pkl", 'wb') as pkl_file:   # pkl
