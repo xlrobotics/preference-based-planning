@@ -419,7 +419,6 @@ class MDP:
         for key in result.ASF.keys():
             if key not in result.ASR:
                 result.ASR[key] = result.AS_reachability(result.ASF[key], flag)
-
                 result.vector_V[key] = {}
                 result.vector_V_ancestor_status[key] = {}
 
