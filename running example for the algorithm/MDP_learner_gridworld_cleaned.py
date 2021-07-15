@@ -289,6 +289,7 @@ class MDP:
                             if ((s in self.vector_V[k] and self.vector_V[k][s] == 1) or (s in self.vector_V_ancestor_status[k] and self.vector_V_ancestor_status[k][s] == 1)) \
                                     and i not in self.dfa.inv_pref_trans[k] and self.vector_V[k][s] == 1: # j in i and i in j means i,j are equivalent
                                 self.vector_V[k][s] = 0
+                                self.vector_V_ancestor_status[k][s] = 1
             else:
                 self.vector_V[i][s] = 0
 
