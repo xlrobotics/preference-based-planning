@@ -216,8 +216,8 @@ class MDP:
         result = set()
         for key in self.P:
             if v in self.P[key] and self.P[key][v] > 0:
-                if key[1] == 'improved':
-                    result.add(key[0])
+                if len(key[0]) == 3:
+                    result.add(key)
                 else:
                     result.add(key)
 

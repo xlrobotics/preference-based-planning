@@ -166,6 +166,12 @@ if __name__ == "__main__":
         print(f"{dfa_s_dict[state]} -- {sym} --> {dfa_s_dict[nstate]}")
 
     print()
+    print("DEBUG: DFA preference transitions")
+    dfa_s_dict = {0: (0, 0), 1: (0, 1), 2: (1, 0), 3: (1, 1)}
+    for (sym, state), nstate in dfa.pref_trans.items():
+        print(f"{dfa_s_dict[state]} -- {sym} --> {dfa_s_dict[nstate]}")
+
+    print()
     print("DEBUG: Product MDP transitions")
     for ((mdp_state, dfa_state), act), trans_dict in result.P.items():
         for (next_mdp_state, next_dfa_state), prob in trans_dict.items():
