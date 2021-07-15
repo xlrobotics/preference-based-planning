@@ -56,6 +56,7 @@ def dfa_add_trans_strict(dfa):
     dfa.add_transition(c.display(), 3, 2)
     dfa.add_transition(whole.display(), 2, 2)  # set transitin 2->b->2
     dfa.add_transition(whole.display(), 1, 1)
+    dfa.add_transition(whole.display(), 0, 0)
     dfa.add_transition(nbnc.display(), 3, 3)
 
 
@@ -151,8 +152,26 @@ if __name__ == "__main__":
     result = mdp.product(dfa, mdp, flag='toy')
     result.plotKey = False
 
-    with open("prod_MDP_verifying_example_strict.pkl", 'wb') as pkl_file: #pkl
+    with open("prod_MDP_verifying_example_strict.pkl", 'wb') as pkl_file:   # pkl
         pickle.dump(result, pkl_file)
+
+    print("DEBUG: MDP transitions")
+    for (state, act, nstate), prob in mdp.P.items():
+        print(f"{S_dict[state]} -- {act}, {prob} --> {S_dict[nstate]}")
+
+    print()
+    print("DEBUG: DFA transitions")
+    dfa_s_dict = {0: (0, 0), 1: (0, 1), 2: (1, 0), 3: (1, 1)}
+    for (sym, state), nstate in dfa.state_transitions.items():
+        print(f"{dfa_s_dict[state]} -- {sym} --> {dfa_s_dict[nstate]}")
+
+    print()
+    print("DEBUG: Product MDP transitions")
+    for ((mdp_state, dfa_state), act), trans_dict in result.P.items():
+        for (next_mdp_state, next_dfa_state), prob in trans_dict.items():
+            print(f"{(S_dict[mdp_state], dfa_state_dict[dfa_state])} -- {act}, {prob} --> "
+                  f"{(S_dict[next_mdp_state], dfa_state_dict[next_dfa_state])}")
+
 
 
 
