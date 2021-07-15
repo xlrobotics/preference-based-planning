@@ -234,9 +234,10 @@ class MDP:
         return result
         # return list(result)
 
-    def enabled_actions(self, v): # v as a state
+    def enabled_actions(self, v, flag='toy'): # v as a state
         result = set()
-        for a in self.A:
+        A = self.A_simple if flag == 'toy' else self.A
+        for a in A:
             flag = False
             if tuple([tuple(v), a]) in self.P:
                 for v_ in self.P[tuple(v), a]:
@@ -262,7 +263,7 @@ class MDP:
 
         # pref_trans: key < item
         for key in self.dfa.inv_pref_labels.keys():  # just to traverse all pref nodes
-            if (key not in self.dfa.pref_trans or len(self.dfa.pref_trans[key]) == 0) and key not in visited and key not in queue: # key=“I” in the example
+            if (key not in self.dfa.inv_pref_trans or len(self.dfa.inv_pref_trans[key]) == 0) and key not in visited and key not in queue: # key=“I” in the example
                 visited.append(key)
                 queue.append(key)
 
@@ -275,26 +276,26 @@ class MDP:
                 self.vector_V[i][s] = 1
                 self.vector_V_ancestor_status[i][s] = 0
 
-                if i in self.dfa.pref_trans:
-                    for j in self.dfa.pref_trans[i]:  # looking at ancestors
+                if i in self.dfa.inv_pref_trans:
+                    for j in self.dfa.inv_pref_trans[i]:  # looking at ancestors
                         if ((s in self.vector_V[j] and self.vector_V[j][s] == 1) or (s in self.vector_V_ancestor_status[j] and self.vector_V_ancestor_status[j][s] == 1)) \
-                                and i not in self.dfa.pref_trans[j]: # j in i and i in j means i,j are equivalent
+                                and i not in self.dfa.inv_pref_trans[j]: # j in i and i in j means i,j are equivalent
                             self.vector_V[i][s] = 0
                             self.vector_V_ancestor_status[i][s] = 1
                             break
 
                     # no matter i is 1 or 0
-                    if i in self.dfa.inv_pref_trans:  # looking at direct decendants
-                        for k in self.dfa.inv_pref_trans[i]:  # check if there were less preferred nodes visited already due to the topology
+                    if i in self.dfa.pref_trans:  # looking at direct decendants
+                        for k in self.dfa.pref_trans[i]:  # check if there were less preferred nodes visited already due to the topology
                             if ((s in self.vector_V[k] and self.vector_V[k][s] == 1) or (s in self.vector_V_ancestor_status[k] and self.vector_V_ancestor_status[k][s] == 1)) \
-                                    and i not in self.dfa.inv_pref_trans[k] and self.vector_V[k][s] == 1: # j in i and i in j means i,j are equivalent
+                                    and i not in self.dfa.pref_trans[k] and self.vector_V[k][s] == 1: # j in i and i in j means i,j are equivalent
                                 self.vector_V[k][s] = 0
                                 self.vector_V_ancestor_status[k][s] = 1
             else:
                 self.vector_V[i][s] = 0
 
-            if i in self.dfa.inv_pref_trans: # inverse pref trans to for lower preference relation: key > item
-                for child in self.dfa.inv_pref_trans[i]:
+            if i in self.dfa.pref_trans: # inverse pref trans to for lower preference relation: key > item
+                for child in self.dfa.pref_trans[i]:
                     # print(child, visited)
                     if child not in visited:
                         visited.append(child)
