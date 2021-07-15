@@ -189,13 +189,21 @@ def spi_strategy(imdp):
 
 
 if __name__ == '__main__':
-    with open("prod_MDP_verifying_example_strict.pkl", 'rb') as pkl_file:  # pkl
+    with open("prod_MDP_verifying_example_weak.pkl", 'rb') as pkl_file:  # pkl
         mdp = pickle.load(pkl_file)
 
     print()
-    print("DEBUG: Vector Values")
+    print("DEBUG: Product MDP transitions")
     dfa_state_dict = {0: (0, 0), 1: (0, 1), 2: (1, 0), 3: (1, 1)}
     S_dict = {0: 'A', 1: 'B', 2: 'C'}  # check google slide page 13
+
+    for ((mdp_state, dfa_state), act), trans_dict in mdp.P.items():
+        for (next_mdp_state, next_dfa_state), prob in trans_dict.items():
+            print(f"{(S_dict[mdp_state], dfa_state_dict[dfa_state])} -- {act}, {prob} --> "
+                  f"{(S_dict[next_mdp_state], dfa_state_dict[next_dfa_state])}")
+
+    print()
+    print("DEBUG: Vector Values")
     for state in mdp.S:
         print(f"Val({(S_dict[state[0]], dfa_state_dict[state[1]])} = {vector_value(mdp, state)[0]}")
 

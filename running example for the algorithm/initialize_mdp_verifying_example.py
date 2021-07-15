@@ -93,8 +93,8 @@ if __name__ == "__main__":
     dfa.pref_trans['X2'] = []
 
     # Select one of the following: Constructs Preference DFA for strict or weak formula
-    # dfa_add_trans_weak(dfa)
-    dfa_add_trans_strict(dfa)
+    dfa_add_trans_weak(dfa)
+    # dfa_add_trans_strict(dfa)
 
     dfa.toDot("DFA")
     dfa.prune_eff_transition()
@@ -152,7 +152,7 @@ if __name__ == "__main__":
     result = mdp.product(dfa, mdp, flag='toy')
     result.plotKey = False
 
-    with open("prod_MDP_verifying_example_strict.pkl", 'wb') as pkl_file:   # pkl
+    with open("prod_MDP_verifying_example_weak.pkl", 'wb') as pkl_file:   # pkl
         pickle.dump(result, pkl_file)
 
     print("DEBUG: MDP transitions")
@@ -168,8 +168,8 @@ if __name__ == "__main__":
     print()
     print("DEBUG: DFA preference transitions")
     dfa_s_dict = {0: (0, 0), 1: (0, 1), 2: (1, 0), 3: (1, 1)}
-    for (sym, state), nstate in dfa.pref_trans.items():
-        print(f"{dfa_s_dict[state]} -- {sym} --> {dfa_s_dict[nstate]}")
+    for state, nstate in dfa.inv_pref_trans.items():
+        print(f"{state} ----> {nstate}")
 
     print()
     print("DEBUG: Product MDP transitions")
