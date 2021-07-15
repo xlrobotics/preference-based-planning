@@ -87,6 +87,7 @@ class MDP:
         self.init_V, self.init_V_ = {}, {} # store initial value function
 
         self.vector_V = {}
+        self.vector_V_ancestor_status = {}
 
         self.Q, self.Q_ = {}, {} # state action value function
         self.T = {} # terminal states
@@ -258,13 +259,13 @@ class MDP:
 
         visited = []  # List to keep track of visited nodes.
         queue = []  # Initialize a queue
-        for key in self.dfa.inv_pref_labels.keys():
+
+        # pref_trans: key < item
+        for key in self.dfa.inv_pref_labels.keys():  # just to traverse all pref nodes
             if (key not in self.dfa.pref_trans or len(self.dfa.pref_trans[key]) == 0) and key not in visited and key not in queue: # key=“I” in the example
                 visited.append(key)
                 queue.append(key)
 
-        # print(self.vector_V)
-        # print(self.dfa.pref_trans)
 
         while queue:
             i = queue.pop(0)
@@ -272,21 +273,26 @@ class MDP:
             # print(s, i, visited, queue)
             if s in self.ASR[i]: # start from mostly preferred node in the graph (top), e.g. node "I" - q=8
                 self.vector_V[i][s] = 1
+                self.vector_V_ancestor_status[i][s] = 0
+
                 if i in self.dfa.pref_trans:
-                    for j in self.dfa.pref_trans[i]:
-                        if s in self.vector_V[j] and self.vector_V[j][s] == 1 and i not in self.dfa.pref_trans[j]: # j in i and i in j means i,j are equivalent
+                    for j in self.dfa.pref_trans[i]:  # looking at ancestors
+                        if ((s in self.vector_V[j] and self.vector_V[j][s] == 1) or (s in self.vector_V_ancestor_status[j] and self.vector_V_ancestor_status[j][s] == 1)) \
+                                and i not in self.dfa.pref_trans[j]: # j in i and i in j means i,j are equivalent
                             self.vector_V[i][s] = 0
+                            self.vector_V_ancestor_status[i][s] = 1
                             break
 
                     # no matter i is 1 or 0
-                    if i in self.dfa.inv_pref_trans:
-                        for k in self.dfa.inv_pref_trans[i]: # check if there were less preferred nodes visited already due to the topology
-                            if s in self.vector_V[k] and self.vector_V[k][s] == 1 and i not in self.dfa.inv_pref_trans[k] and self.vector_V[k][s] == 1: # j in i and i in j means i,j are equivalent
+                    if i in self.dfa.inv_pref_trans:  # looking at direct decendants
+                        for k in self.dfa.inv_pref_trans[i]:  # check if there were less preferred nodes visited already due to the topology
+                            if ((s in self.vector_V[k] and self.vector_V[k][s] == 1) or (s in self.vector_V_ancestor_status[k] and self.vector_V_ancestor_status[k][s] == 1)) \
+                                    and i not in self.dfa.inv_pref_trans[k] and self.vector_V[k][s] == 1: # j in i and i in j means i,j are equivalent
                                 self.vector_V[k][s] = 0
             else:
                 self.vector_V[i][s] = 0
 
-            if i in self.dfa.inv_pref_trans:
+            if i in self.dfa.inv_pref_trans: # inverse pref trans to for lower preference relation: key > item
                 for child in self.dfa.inv_pref_trans[i]:
                     # print(child, visited)
                     if child not in visited:
@@ -415,6 +421,7 @@ class MDP:
                 result.ASR[key] = result.AS_reachability(result.ASF[key], flag)
 
                 result.vector_V[key] = {}
+                result.vector_V_ancestor_status[key] = {}
 
         for s in result.S:
             result.init_ASR_V(s)
