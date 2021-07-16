@@ -38,6 +38,8 @@ class DFA:
 
     def __init__(self, initial_state=None, alphabet=None, transitions=dict([]), final_states=None, memory=None):
         self.state_transitions = {}
+        self.state_loop = {}
+        self.state_trans_dict = {}
         self.final_states = set([])
         self.state_transitions = transitions
         if alphabet == None:
@@ -100,6 +102,18 @@ class DFA:
                 if input_symbol not in self.final_transitions:
                     self.final_transitions.append(input_symbol)
             self.state_transitions[(input_symbol, state)] = next_state
+
+            if state not in self.state_trans_dict:
+                self.state_trans_dict[state] = set([input_symbol])
+            else:
+                self.state_trans_dict[state].add(input_symbol)
+
+            if state == next_state:
+                if state not in self.state_loop:
+                    self.state_loop[state] = set([input_symbol])
+                else:
+                    self.state_loop[state].add(input_symbol)
+
             if state != next_state:
                 if state not in self.transition_tree:
                     self.transition_tree[state] = []

@@ -244,6 +244,7 @@ class Grid_World():
 
     def step_cloud(self):
         # determine the cloud dynamics
+        # print(self.cloud_coords[0])
         if self.cloud_dynamics == 'random_walk':
             for i in range(len(self.cloud_coords)):
 
@@ -273,6 +274,14 @@ class Grid_World():
         step_back = self.position
 
         self.battery -= 1
+
+        if self.trapped == True:
+            if self.battery == 0:
+                logging.warning("battery depleted")
+                Done = True
+            state = self.get_current_state_old()
+            return state, Done
+
 
         if action == 0:   # Action Up
             # print("Move Up")
@@ -356,6 +365,52 @@ class Grid_World():
         self.goal_coord = list(goal)
 
 
+def trans_parser(obs, board, trans, current_q, model):   # because a single observed mdp (original, not product) state might be mapped to multiple transitions for the labeling function, needs further parsing
+    depleted = False
+    at_base = False
+    at_A = False
+    at_B = False
+    at_C = False
+    if obs[3] == 0:
+        depleted = True
+    if obs[0:2] in board.station_coords:
+        at_base = True
+    if obs[0:2] == board.goal_coord[0]:
+        at_A = True
+    if obs[0:2] == board.goal_coord[1]:
+        at_B = True
+    if obs[0:2] == board.goal_coord[2]:
+        at_C = True
+
+    if current_q in [7, 8, 9]:
+        return model.dfa.state_transitions[tuple(['1', current_q])], '1'
+
+    if depleted:
+        if 'dead' in trans:
+            return model.dfa.state_transitions[tuple(['dead', current_q])], 'dead'
+        elif 'base|dead' in trans:
+            return model.dfa.state_transitions[tuple(['base|dead', current_q])], 'base|dead'
+
+    if at_base:
+        if 'base' in trans:
+            return model.dfa.state_transitions[tuple(['base', current_q])], 'base'
+        elif 'base|dead' in trans:
+            return model.dfa.state_transitions[tuple(['base|dead', current_q])], 'base|dead'
+
+    out_trans = 'None'
+    if at_A:
+        out_trans = 'a&!dead'
+    elif at_B:
+        out_trans = 'b&!dead'
+    elif at_C:
+        out_trans = 'c&!dead'
+
+    if out_trans not in model.dfa.state_trans_dict[current_q]:
+        out_trans = list(model.dfa.state_loop[current_q])[0]
+
+    return model.dfa.state_transitions[tuple([out_trans, current_q])], out_trans
+
+
 
 if __name__ == "__main__":
     # Initialize pygame
@@ -397,11 +452,16 @@ if __name__ == "__main__":
 
     init_obs = board.get_current_state_old()
     # init_obs = board.get_current_state()
-    for key in pi:
-        if len(pi[key]) > 0:
-            print(pi[key])
+    # for key in pi:
+    #     if list(key[0][0:2]) == board.goal_coord[2] and key[0][3] == 1:
+    #         print(key, pi[key])
+    # print('--------------------------')
+    # for key2 in model.P:
+    #     # print(key2[0][0][0:2])
+    #     if list(key2[0][0][0:2]) == board.goal_coord[2] and key2[0][0][3] == 1:
+    #         print(key2, model.P[key2])
 
-    init_q = 0
+    init_q = 6
     init_obs[3] = board.battery_cap - 1
     act_set = pi[tuple([tuple(init_obs), init_q, 'improved'])]
     gameOver = False
@@ -418,6 +478,8 @@ if __name__ == "__main__":
 
     i = 0
     current_q = init_q
+    obs = init_obs
+    pref_level = 'bottom'
     while not gameOver:
         # Handle events
         for event in pygame.event.get():
@@ -436,20 +498,47 @@ if __name__ == "__main__":
 
         trans = model.mdp.L[tuple(obs)]
 
-        current_q = model.dfa.state_transitions[tuple([trans[0], current_q])]
-        logging.warning(
-            'Improving action set: %s. Taking action: %s from %s to %s, trapping status - %s. Transition: %s, current state (s): %s, pref_level: %s',
-            act_set, act, old_pos, new_pos, board.trapped, trans, obs, model.dfa.pref_labels[current_q])
+        current_q, result_trans = trans_parser(obs, board, trans, current_q, model)
+
+
+
+        # current_q = model.dfa.state_transitions[tuple([trans[0], current_q])]
+
+        if current_q in model.dfa.pref_labels:
+            pref_level = model.dfa.pref_labels[current_q]
+            logging.warning(
+                'Improving action set: %s. Taking action: %s from %s to %s, trapping status - %s. Transition: %s, current state (s, q): (%s, %s), pref_level: %s',
+                act_set, act, old_pos, new_pos, board.trapped, result_trans, obs, current_q, model.dfa.pref_labels[current_q])
+        else:
+            logging.warning(
+                'Improving action set: %s. Taking action: %s from %s to %s, trapping status - %s. Transition: %s, current state (s, q): (%s, %s), pref_level: None',
+                act_set, act, old_pos, new_pos, board.trapped, result_trans, obs, current_q)
+
+
         board.update()
 
-        act_set = pi[tuple([tuple(obs), current_q, 'improved'])]
+        try:
+            act_set = pi[tuple([tuple(obs), current_q, 'improved'])]
+        except KeyError:
+            act_set = pi[tuple([tuple(obs), current_q])]
+
         if not gameOver:
-            if len(act_set) == 0:
-                print('failing state detected, task terminated', obs)
+
+            if current_q in model.dfa.sink_states:
+                print('sink state detected, task terminated at state', obs)
                 gameOver = True
-                # logging.error('failing state %s detected, random action selected', obs)
-                # act_set = set(['S', 'N', 'E', 'W', 'stay'])
-                # act = random.choice(list(act_set))
+            elif pref_level is not 'bottom' and len(model.dfa.inv_pref_trans[pref_level]) == 0:
+                print('already satisfied top preference ', pref_level,', task terminated at state', obs)
+                gameOver = True
+            elif pref_level is not 'bottom' and result_trans == 'base':
+                print('already satisfied preference ', pref_level, ' and back to base, task terminated at state', obs)
+                gameOver = True
+            elif len(act_set) == 0:
+                print('no improving policy, try non-improving policy instead at state', obs)
+                act_set = pi[tuple([tuple(obs), current_q])]
+                if len(act_set) == 0:
+                    print('no available policy, task terminated at state', obs)
+                    gameOver = True
             else:
                 act = random.choice(list(act_set))
 

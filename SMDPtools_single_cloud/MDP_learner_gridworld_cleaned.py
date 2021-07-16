@@ -312,14 +312,14 @@ class MDP:
         filtered_S = []
         for s in mdp.S:  #new_S
             if type(s) is not int: s=tuple(s)
-            if mdp.L[s][0] != 'dead' and s not in filtered_S: # exclude unsafe states
+            if 'dead' not in mdp.L[s] and s not in filtered_S:  # exclude unsafe states
                 filtered_S.append(s)
 
         removing_states = []
-        for s in tqdm(filtered_S):
-            for transition in self.P:
-                if s == transition[0] and transition[2] not in filtered_S and self.P[transition] > 0:
-                    removing_states.append(s)
+        # for s in tqdm(filtered_S):
+        #     for transition in self.P:
+        #         if s == transition[0] and transition[2] not in filtered_S and self.P[transition] > 0:  # removing positive transitions to sink states
+        #             removing_states.append(s)
 
 
         filtered_S = dcp(list(set(filtered_S)-set(removing_states)))
@@ -334,7 +334,7 @@ class MDP:
                 if key not in result.ASF:
                     result.ASF[key] = result.crossproduct2(dfa.inv_pref_labels[key], filtered_S)
         else:
-            result.init_S = self.crossproduct(list([dfa.initial_state]), mdp.Exp['!(a|b|c|base|dead)'])
+            result.init_S = self.crossproduct(list([dfa.initial_state]), mdp.Exp['!(a|b|c|base|dead)']) # init state should not be at the target or base or sink states
             new_success = self.crossproduct(list(dfa.final_states - dfa.sink_states), filtered_S)
 
             # calculate F states for each pref node:
@@ -615,15 +615,15 @@ class MDP:
         # cloud dynamics random walk, up, down, stay
         cloud_acts = [-1, 1]
 
-        for state in self.unsafe:  # the transition will be frozen when the battery is 0, even the clouds should not move
-            s = tuple(state)
-            for a in self.A.keys():
-                self.P[s, a, s] = 1.0
+        # for state in self.unsafe:  # the transition will be frozen when the battery is 0, even the clouds should not move
+        #     s = tuple(state)
+        #     for a in self.A.keys():
+        #         self.P[s, a, s] = 1.0
 
         for state in self.S: # calculates normal transitions when there are still battery left
             s = tuple(state)
             current_cloud_poses = []
-            current_cloud_poses.append(tuple([s[2], 0]))
+            current_cloud_poses.append(tuple([s[2], 1]))
 
             for a in self.A.keys():
                 # self.P[s, a, s] = 0.0  # not possible to stay at the same state, since energy always -1，and clouds are always moving

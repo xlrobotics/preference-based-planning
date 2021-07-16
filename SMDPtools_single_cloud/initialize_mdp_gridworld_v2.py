@@ -217,14 +217,30 @@ if __name__ == "__main__":
 
     mdp = MDP()
     mdp.set_S(S_filtered)
-    mdp.set_unsafe(mdp.add_wall(q_s[dead_sinks.v]))  # should be changed to unsafe
+    mdp.set_unsafe(q_s[dead_sinks.v])  # should be changed to unsafe
     mdp.set_stations(board.station_coords)
-    mdp.set_stations(board.goal_coord)
+    mdp.set_targets(board.goal_coord)
     mdp.set_full_tank(board.battery_cap)
     mdp.set_P()
     mdp.set_L(s_q)  # L: labeling function (L: S -> Q), e.g. self.L[(2, 3)] = 'g1'
     mdp.set_Exp(q_s)  # L^-1: inverse of L (L: Q -> S), e.g. self.Exp['g1'] = (2, 3)
     mdp.set_Size(4, 4)
+
+    for key in mdp.P:
+        if list(key[0][0:2]) == board.goal_coord[2] and key[0][2] == 2:
+            print(key, mdp.P[key])
+
+    for key in S:
+        if list(key[0:2]) == board.goal_coord[2] and key[2] == 2:
+            print(key, key in S_filtered)
+
+    # for key in mdp.P:
+    #     uav_pos = list(key[0][0:2])
+    #     cloud_pos = [key[0][2], 1]
+    #     if uav_pos == cloud_pos:
+    #         print(key, mdp.P[key])
+    #         if not list(key[2][0:2]) == uav_pos:
+    #             print('warning:', key, mdp.P[key])
 
     # specify DFA graph structure
     dfa = DFA(0, [A, B, C, bases, dead_sinks, n_ABC, n_AB, n_AC, n_BC, n_A, n_B, n_C, n_end, whole])
@@ -237,7 +253,6 @@ if __name__ == "__main__":
     dfa.pref_labeling(7, 'X1')
     dfa.pref_labeling(8, 'X2')
     dfa.pref_labeling(4, 'X2')
-
 
     dfa.add_pref_trans('X1', 'X2')
 
@@ -262,6 +277,8 @@ if __name__ == "__main__":
     for i in range(sink+1):
         if i < 7 and not i == 4:
             dfa.add_transition(base_or_dead.display(), i, sink)
+            dfa.add_transition(bases.display(), i, sink)
+            dfa.add_transition(dead_sinks.display(), i, sink)
         if i == 4:
             dfa.add_transition(dead_sinks.display(), i, sink)
         if i >= 7 and i <= sink: #7, 8, 9

@@ -163,27 +163,27 @@ def spi_strategy(imdp):
         v = frontier.pop(0)
         visited.add(v)
         pre_v = imdp.predecessors(v)
-        # if len(pre_v) > 0:
-        #     print(f"Visiting: {v}, pred: {pre_v}")
+        if len(pre_v) > 0:
+            print(f"Visiting: {v}, pred: {pre_v}")
 
         for u, a in pre_v:
             if level[u] == float("inf") and len(u) != 3:
                 level[u] = level[v] + 1
                 frontier.append(u)
 
-                # print(f"Visiting: {v}, Add {u} to frontier.")
+                print(f"Visiting: {v}, Add {u} to frontier.")
 
             if level[v] < level[u] != float("inf"):
                 spi[u].add(a)
                 spi[u + (IMPROVED,)].add(a)
-                # print(f"Visiting: {v}, spi[{u}]={spi[u]}")
+                print(f"Visiting: {v}, spi[{u}]={spi[u]}")
 
     print(f"Generate SPI strategy for States from which Positively Improving Actions do NOT exist.")
     for v in imdp.S:
         if len(spi[v]) == 0:
-            spi[v] = imdp.enabled_actions(v, "toy")
+            spi[v] = imdp.enabled_actions(v, "gridworld")
             if len(v) != 3:
-                spi[v + (IMPROVED,)] = imdp.enabled_actions(v, "toy")
+                spi[v + (IMPROVED,)] = imdp.enabled_actions(v, "gridworld")
 
     return spi
 
@@ -235,6 +235,9 @@ if __name__ == '__main__':
     #     print(f"{(S_dict[state[0]], dfa_state_dict[state[1]]) + state[2:]}: {strategy}")
 
     # with open("PI_prod_MDP_verifying_example.pkl", 'wb') as pkl_file:  # pkl
+    #     pickle.dump(pi, pkl_file)
+
+    # with open("PI_prod_MDP_gridworld_v2.pkl", 'wb') as pkl_file:  # pkl
     #     pickle.dump(pi, pkl_file)
 
     with open("PI_prod_MDP_gridworld_v2.pkl", 'wb') as pkl_file:  # pkl
