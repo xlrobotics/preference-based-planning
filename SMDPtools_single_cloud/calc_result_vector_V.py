@@ -2,7 +2,13 @@ import pickle
 from tqdm import tqdm
 from MDP_learner_gridworld_cleaned import MDP
 from copy import deepcopy as dcp
+import logging
 
+logging.basicConfig(level=logging.DEBUG,  # logging message lvl
+                    filename='gridworld_policy.log',
+                    filemode='w',
+                    format='%(asctime)s - %(levelname)s: %(message)s'
+                    )
 
 IMPROVED = "improved"
 
@@ -210,8 +216,58 @@ if __name__ == '__main__':
     # for state in mdp.S:
     #     print(f"Val({(S_dict[state[0]], dfa_state_dict[state[1]])} = {vector_value(mdp, state)[0]}")
 
+    ''' 
+    Vector - Values for a few states.
+    - Battery cell,
+    - A
+    - B
+    - C
+    - 2 to 3
+    arbitrary locations
+    - 2 to 3
+    special states
+    - Comparison checks a few states
+    '''
+    stations = [(0, 3), (3, 3)]
+    targets = {'a&!dead': (0, 0),
+               'b&!dead': (3, 0),
+               'c&!dead': (2, 1)}
+    battery = 7
+    cloud_pos = 1
+    for pref_node in mdp.vector_V:
+        for s in stations:
+            vector_0_to_9 = "station:" + str(s) + ", pref node:" + pref_node+"-{"
+            for q in mdp.dfa.states:
+                vector_0_to_9 += str(mdp.vector_V[pref_node][tuple([tuple(list(s)+[cloud_pos]+[12]), q])]) + ", "
+            vector_0_to_9 += "}"
+            logging.info(vector_0_to_9)
+
+        for key in targets:
+            s = targets[key]
+            vector_0_to_9 = key + ":" + str(s) + ", pref node:" + pref_node+"-{"
+            for q in mdp.dfa.states:
+                vector_0_to_9 += str(mdp.vector_V[pref_node][tuple([tuple(list(s)+[cloud_pos]+[battery]), q])]) + ", "
+            vector_0_to_9 += "}"
+            logging.info(vector_0_to_9)
+
     # Construct improvement MDP
     imdp = construct_improvement_mdp(mdp)
+
+    '''
+    Improvement
+    MDP
+    - | states |
+    - | edges |
+    '''
+    print("|- Number of states in the iMDP:", len(imdp.S), ". Theoretical number: ")
+    logging.info("|- Number of states in the iMDP: %s. Theoretical number: ", len(imdp.S))
+    counter = 0
+    for src_act in imdp.P:
+        counter += len(imdp.P[src_act])
+    print("|- Number of edges in the iMDP:", counter, ". Theoretical number: ")
+    logging.info("|- Number of edges in the iMDP: %s. Theoretical number: ", counter)
+
+
     # print()
     # print("DEBUG: Improvement MDP transition function")
     # for (state, act), trans_dict in imdp.P.items():

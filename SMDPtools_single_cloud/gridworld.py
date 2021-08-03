@@ -159,16 +159,16 @@ class Grid_World():
             for j in range(self.board_size[1]):
                 for c1_i in range(self.board_size[0]):
                     for b in range(self.battery_cap):
-                        if dtype=="list":
-                            state_set.append([i, j, c1_i, b]) # each cloud only moves in one axis
-                        elif dtype=="tuple":
+                        if dtype == "list":
+                            state_set.append([i, j, c1_i, b])  # each cloud only moves in one axis
+                        elif dtype == "tuple":
                             state_set.append(tuple([i, j, c1_i, b]))  # each cloud only moves in one axis
 
-        for station in self.station_coords: # adding full battery cap states, only at station
+        for station in self.station_coords:  # adding full battery cap states, only at station
             for c1_i in range(self.board_size[0]):
                 if dtype == "list":
                     state_set.append(station+[c1_i, self.battery_cap])
-                elif dtype=="tuple":
+                elif dtype == "tuple":
                     state_set.append(tuple(station + [c1_i, self.battery_cap]))
         return state_set
 
@@ -366,6 +366,7 @@ class Grid_World():
 
 
 def trans_parser(obs, board, trans, current_q, model):   # because a single observed mdp (original, not product) state might be mapped to multiple transitions for the labeling function, needs further parsing
+
     depleted = False
     at_base = False
     at_A = False
@@ -413,6 +414,11 @@ def trans_parser(obs, board, trans, current_q, model):   # because a single obse
 
 
 if __name__ == "__main__":
+    '''
+    SPI strategy (running log)
+    |- Select 2-3 special states, 2-3 trivial states. Check expected SPI strategy.
+    '''
+
     # Initialize pygame
     pygame.init()
 
@@ -461,6 +467,7 @@ if __name__ == "__main__":
     #     if list(key2[0][0][0:2]) == board.goal_coord[2] and key2[0][0][3] == 1:
     #         print(key2, model.P[key2])
 
+    # TODO: unit test, logging file storing the steps, input-output
     init_q = 6
     init_obs[3] = board.battery_cap - 1
     act_set = pi[tuple([tuple(init_obs), init_q, 'improved'])]
@@ -527,10 +534,10 @@ if __name__ == "__main__":
             if current_q in model.dfa.sink_states:
                 print('sink state detected, task terminated at state', obs)
                 gameOver = True
-            elif pref_level is not 'bottom' and len(model.dfa.inv_pref_trans[pref_level]) == 0:
+            elif pref_level != 'bottom' and len(model.dfa.inv_pref_trans[pref_level]) == 0:
                 print('already satisfied top preference ', pref_level,', task terminated at state', obs)
                 gameOver = True
-            elif pref_level is not 'bottom' and result_trans == 'base':
+            elif pref_level != 'bottom' and result_trans == 'base':
                 print('already satisfied preference ', pref_level, ' and back to base, task terminated at state', obs)
                 gameOver = True
             elif len(act_set) == 0:

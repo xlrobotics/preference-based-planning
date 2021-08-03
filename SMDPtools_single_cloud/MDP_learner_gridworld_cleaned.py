@@ -14,6 +14,12 @@ import json
 import logging
 from tqdm import tqdm
 
+logging.basicConfig(level=logging.DEBUG,  # logging message lvl
+                    filename='gridworld_running.log',
+                    filemode='w',
+                    format='%(asctime)s - %(levelname)s: %(message)s'
+                    )
+
 '''
 Comment tags:
     Init:       used for initializing the object parameters
@@ -302,6 +308,26 @@ class MDP:
                         queue.append(child)
 
 
+    def check_P(self):
+        flag = True
+        for s in self.S:
+            for a in self.A:
+                sum = 0
+                cache_entries = []
+                for s_ in self.originS:
+                    if (s, a, s_) in self.P:
+                        sum += self.P[s, a, s_]
+                        cache_entries.append((s, a, s_))
+
+                if not sum == 1:
+                    print("|- Warning: probability sum = ", sum, " failed in the test at state: ", s, " and action: ", a)
+                    logging.warning("Probability sum = %s, failed to pass the test at state, action: (%s, %s)", sum, s, a)
+                    for element in cache_entries:
+                        print(" |- ", element, ", Probability: ", self.P[element])
+                        logging.debug(" P(%s) = %s", element, self.P[element])
+
+                    flag = False
+        return flag
 
     # API: DFA * MDP product
     def product(self, dfa, mdp, flag = 'toy'):
@@ -310,9 +336,9 @@ class MDP:
         result.L = self.L
 
         filtered_S = []
-        for s in mdp.S:  #new_S
-            if type(s) is not int: s=tuple(s)
-            if 'dead' not in mdp.L[s] and s not in filtered_S:  # exclude unsafe states
+        for s in mdp.S:  # new_S
+            if type(s) is not int: s = tuple(s)
+            if 'dead' not in mdp.L[s] and s not in filtered_S:  # exclude unsafe states, e.g. 0 battery states
                 filtered_S.append(s)
 
         removing_states = []
@@ -349,13 +375,14 @@ class MDP:
         true_new_s = []
 
         counter = 0
-        seen_sink=[]
+        seen_sink = []
+        check_unsafe = []
 
         if len(self.transition_file) == 0:
             for p in tqdm(mdp.P.keys()):
                 counter += 1
 
-                if p[0] in self.unsafe:
+                if p[0] in self.unsafe:  # not entered if unsafe states are already filtered
                     if p[0] not in seen_sink:
                         logging.warning("sink state %s encountered, so far %s/224", p[0], len(seen_sink))
                         seen_sink.append(p[0])
@@ -372,11 +399,11 @@ class MDP:
                     continue
 
                 for q in dfa.states:
-                    if p[0]==1 and p[2]==0 and q == 1:
+                    if p[0] == 1 and p[2] == 0 and q == 1:
                         pass
 
-                    if q not in dfa.final_states and mdp.L[p[0]][0] in dfa.final_transitions: # initial state not allowed with final states of dfa
-                        continue
+                    # if q not in dfa.final_states and mdp.L[p[0]][0] in dfa.final_transitions:  # initial state not allowed with final states of dfa
+                    #     continue
                     #
                     # if q in dfa.sink_states and mdp.L[p[0]][0] != 'sink': # cannot get out after entering sink state
                     #     continue
@@ -389,12 +416,12 @@ class MDP:
                     if (new_s, new_a) not in new_P:
                         new_P[new_s, new_a] = {}
 
-                    for label in mdp.L[p[2]]:
+                    for label in mdp.L[p[2]]:  # out label with q_ should match out edge from q
                         if tuple([label, q]) in dfa.state_transitions.keys():
-                            q_ = dfa.state_transitions[label, q] # p[0]
+                            q_ = dfa.state_transitions[label, q]  # p[0]
 
                             new_s_ = (p[2], q_)
-                            if q == q_: # dfa state equals to transition state after reaching the labelled state in mdp
+                            if q == q_:  # dfa state equals to transition state after reaching the labelled state in mdp
                                 if new_s_ not in new_P[new_s, new_a]:
                                     new_P[new_s, new_a][new_s_] = mdp.P[p]
                             else:
@@ -404,9 +431,10 @@ class MDP:
                             if tuple(new_s_) not in true_new_s:
                                 true_new_s.append(tuple(new_s_))
 
-
                     if new_s not in true_new_s:
                         true_new_s.append(tuple(new_s))
+                    if p[2] in mdp.unsafe and tuple(new_s_) not in check_unsafe:
+                        check_unsafe.append(new_s_)
 
 
         result.set_S(true_new_s)
@@ -628,7 +656,7 @@ class MDP:
             for a in self.A.keys():
                 # self.P[s, a, s] = 0.0  # not possible to stay at the same state, since energy always -1，and clouds are always moving
 
-                if s[0:2] in current_cloud_poses: # trapped in clouds
+                if s[0:2] in current_cloud_poses:  # trapped in clouds
                     next_position = s[0:2]
                 else:
                     next_position = np.array(s[0:2]) + np.array(self.A[a])

@@ -15,9 +15,50 @@ from pygame.locals import *
 import yaml
 import pickle
 import json
+import logging
+
+logging.basicConfig(level=logging.DEBUG,  # logging message lvl
+                    filename='gridworld_init.log',
+                    filemode='w',
+                    format='%(asctime)s - %(levelname)s: %(message)s'
+                    )
+# format='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s'
 
 import matplotlib.pyplot as plt
 # from matplotlib.axes import Axes as ax
+
+'''
+TODO:
+MDP  [DONE]
+- |states|
+- |edges|
+- sum of probabilities
+
+DFAs for LHS, RHS of Pref-formula
+- manual checking will be required. If possible, plot. 
+Preference DFA
+- |states|: reachable states
+- |edges|
+Preference graph: weak
+- |states|
+- assert actual edges from X2 -> X1.
+Product MDP
+- |states|
+- |edges|
+Vector-Values for a few states.
+- Battery cell, 
+- A
+- B
+- C
+- 2 to 3 arbitrary locations
+- 2 to 3 special states
+- Comparison checks a few states
+Improvement MDP
+- |states|
+- |edges|
+SPI strategy
+- Select 2-3 special states, 2-3 trivial states. Check expected SPI strategy.
+'''
 
 def get_features(pos):
     return pos[0]*(board_size[0]) + pos[1] # -1
@@ -66,7 +107,6 @@ if __name__ == "__main__":
     pygame.init()
     # definition of
 
-
     # # Set window size and title, and frame delay
     surfaceSize = (32 * 4, 32 * 4)
     windowTitle = 'UAV Grid World'
@@ -77,7 +117,7 @@ if __name__ == "__main__":
 
     # Create the window
     surface = pygame.display.set_mode(surfaceSize, 0, 0)
-    pygame.display.set_caption(windowTitle)
+    # pygame.display.set_caption(windowTitle)
 
     # create and initialize objects
     gameOver = False
@@ -226,13 +266,13 @@ if __name__ == "__main__":
     mdp.set_Exp(q_s)  # L^-1: inverse of L (L: Q -> S), e.g. self.Exp['g1'] = (2, 3)
     mdp.set_Size(4, 4)
 
-    for key in mdp.P:
-        if list(key[0][0:2]) == board.goal_coord[2] and key[0][2] == 2:
-            print(key, mdp.P[key])
-
-    for key in S:
-        if list(key[0:2]) == board.goal_coord[2] and key[2] == 2:
-            print(key, key in S_filtered)
+    # for key in mdp.P:
+    #     if list(key[0][0:2]) == board.goal_coord[2] and key[0][2] == 2:
+    #         print(key, mdp.P[key])
+    #
+    # for key in S:
+    #     if list(key[0:2]) == board.goal_coord[2] and key[2] == 2:
+    #         print(key, key in S_filtered)
 
     # for key in mdp.P:
     #     uav_pos = list(key[0][0:2])
@@ -281,7 +321,7 @@ if __name__ == "__main__":
             dfa.add_transition(dead_sinks.display(), i, sink)
         if i == 4:
             dfa.add_transition(dead_sinks.display(), i, sink)
-        if i >= 7 and i <= sink: #7, 8, 9
+        if 7 <= i <= sink:  # 7, 8, 9
             dfa.add_transition(whole.display(), i, i)
 
     # progressive transitions
@@ -305,7 +345,6 @@ if __name__ == "__main__":
     # succeeding transitions
     dfa.add_transition(bases.display(), 4, 8)
 
-
     dfa.toDot("DFA")
     dfa.prune_eff_transition()
     dfa.g_unsafe = 'sink'
@@ -313,14 +352,60 @@ if __name__ == "__main__":
     curve = {}
     result = mdp.product(dfa, mdp, "gridworld")
     result.plotKey = False
-    # curve['action'] = result.SVI(0.001)
 
-    # with open("prod_MDP_gridworld.json", 'wb') as json_file: # TODO: change to json
-    #     json.dump(result, json_file)
+    # MDP
+    # - | states |
+    # - | edges |
+    # - sum of probabilities
+    # s, a, s_, value = (2, 1, 1, 1), 'N', (2, 1, 0, 0), 0.9   # error testing case
+    # mdp.add_trans_P(s, a, s_, value)
 
-    with open("prod_MDP_gridworld_v2.pkl", 'wb') as pkl_file: #pkl
+    print("|- Number of states in the original MDP:", len(mdp.originS), ". Theoretical number: (4x4-2)x4x12+2x4 = 680")  # use assert later
+    print("|- Number of states in the MDP excluding zero battery states:", len(mdp.S), ". Theoretical number: 680-14x4 = 624")
+    print("|- Number of edges in the original MDP:", len(mdp.P), ". Theoretical number: 312x5x2+312x5x1 = 4680")
+    print("|- Checking probability sum...")
+    # logging
+    logging.info('Number of states in the original MDP: %s. Theoretical number: (4x4-2)x4x12+2x4 = 680', len(mdp.originS))
+    logging.info('Number of states in the MDP excluding zero battery states: %s. Theoretical number: 680-14x4 = 624', len(mdp.S))
+    logging.info('Number of edges in the original MDP: %s. Theoretical number: 312x5x2+312x5x1 = 4680', len(mdp.P))
+    logging.info('Checking probability sum...')
+    flag = mdp.check_P()
+    if flag:
+        print("|- Probability sum has passed the test.")
+        logging.info("|- Probability sum has passed the test.")
+
+    # DFAs
+    # for LHS, RHS of Pref-formula
+    # - manual checking will be required. If possible, plot.
+    dfa.pretty_print()
+    print()
+
+    # Preference DFA
+    # - | states |: reachable states
+    # - | edges |
+    print(dfa.pref_labels)
+    print()
+
+    #
+    # Preference graph: weak
+    # - | states |
+    # - assert actual edges from X2 -> X1.
+    print(dfa.pref_trans)
+    print()
+
+    # Product MDP
+    # - | states |
+    # - | edges |
+    print("|- Number of states in the product MDP:", len(result.S), ". Theoretical number: 624x10 + 56x3")  # 56x3 is because transitions related to AP '1': ('1', 7), ('1', 8), ('1', 9)
+    counter = 0
+    for src_act in result.P:
+        counter += len(result.P[src_act])
+    print("|- Number of edges in the product MDP:", counter, ". Theoretical number: ")
+
+
+    with open("prod_MDP_gridworld_v2.pkl", 'wb') as pkl_file:
         pickle.dump(result, pkl_file)
-    # curve['action'] = result.SVI(0.001)
+
 
 
 

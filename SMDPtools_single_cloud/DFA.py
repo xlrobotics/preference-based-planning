@@ -1,7 +1,7 @@
 __author__ = 'Jie Fu, jfu2@wpi.edu'
 
 from types import *
-
+import logging
 
 class ExceptionFSM(Exception):
     """This is the FSM Exception class."""
@@ -60,6 +60,29 @@ class DFA:
         self.inv_pref_trans = {}
         self.inv_pref_labels = {}
         # self.actions = []
+
+    def pretty_print(self):
+        """Displays all information about the DFA in an easy-to-read way. Not
+        actually that easy to read if it has too many states.
+        """
+        print("")
+        print("This DFA has %s states" % len(self.states))
+        print("Alphabet:", self.alphabet)
+        print("Starting state:", self.initial_state)
+        print("Accepting states:", self.final_states)
+        print("Sink state:", self.sink_states)
+        print()
+        print("States:", self.states)
+        print("Transition function:")
+        for src in self.states:
+            for sigma in self.alphabet:
+                if type(sigma) == str:
+                    try:
+                        # dst = self.delta(src, sigma)
+                        dst = self.state_transitions[sigma, src]
+                        print("\t", f"{src} -- ({sigma}) --> {dst}")
+                    except KeyError:
+                        pass
 
     def pref_labeling(self, q, pref_node):
         if q not in self.pref_labels:
