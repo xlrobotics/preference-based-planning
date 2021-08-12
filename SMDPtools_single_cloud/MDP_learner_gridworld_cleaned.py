@@ -329,6 +329,119 @@ class MDP:
                     flag = False
         return flag
 
+    def new_product(self, dfa, mdp, flag = 'toy'):
+        result = MDP(mdp.transition_file)
+        result.Exp = dcp(mdp.Exp)
+        result.L = mdp.L
+        result.S = []
+
+        S_not_end = mdp.Exp['!(base|dead)']
+        S_failure = mdp.Exp['dead']
+        S_stations = mdp.Exp['base']
+        q_not_base = [0, 1, 2, 3, 4, 5, 6, 7]
+        q_base_acceptance = [8, ]
+        q_failure_or_final_acceptance = [7, 8, 9]
+        q_base_failure = [9, ]
+
+
+        prod_n_base_n_end = self.crossproduct(q_not_base, S_not_end)
+        prod_base_acc = self.crossproduct(q_base_acceptance, mdp.S)
+        prod_fail_or_final_accept = self.crossproduct(q_failure_or_final_acceptance, S_failure)
+        prod_base_fail = self.crossproduct(q_base_failure, S_stations)
+
+        # FIXME: backup for debugging, comment out for general purpose
+        q_no_base_acceptance = [4, 7]
+        prod_unreachable = self.crossproduct(q_base_failure, S_not_end) + self.crossproduct(q_no_base_acceptance, S_stations)
+
+        result.S = dcp(prod_n_base_n_end + prod_base_acc + prod_fail_or_final_accept + prod_base_fail + prod_unreachable)  # TODO: comment out prod_unreachable
+
+        no_fail_states = []
+        fail_states = []
+        for s in result.S:
+            if s[0][3] != 0:
+                no_fail_states.append(s)
+            else:
+                fail_states.append(s)
+
+        if flag == 'toy':            # calculate F states for each pref node:
+            for key in dfa.inv_pref_labels.keys():
+                if key not in result.ASF:
+                    result.ASF[key] = result.crossproduct2(dfa.inv_pref_labels[key], result.S)
+        else:
+            # calculate F states for each pref node:
+            for key in dfa.inv_pref_labels.keys():
+                if key not in result.ASF:
+                    result.ASF[key] = result.crossproduct(dfa.inv_pref_labels[key], result.S)
+
+        new_P = {}
+        cloud_acts = [-1, 1]
+
+        for prod_s in tqdm(no_fail_states):  # result.S:
+            # prod_n_base_n_end -> any transitions
+            # prod_base_acc -> 1 transition (self loop)
+            # prod_fail_or_final_accept -> 1 transition (self loop)
+            if prod_s[0][3] == 0:  # skip zero battery status
+                continue
+            current_cloud_poses = []
+            current_cloud_poses.append(tuple([prod_s[0][2], 1]))
+            q_src = prod_s[1]
+
+            for a in mdp.A:
+                if (prod_s, a) not in new_P:
+                    new_P[prod_s, a] = {}
+
+                if prod_s[0][0:2] in current_cloud_poses:  # trapped in clouds
+                    next_position = prod_s[0][0:2]
+                else:
+                    next_position = np.array(prod_s[0][0:2]) + np.array(mdp.A[a])
+                    if next_position[0] < 0: next_position[0] = 1  # bounce back when touching the boundary
+                    if next_position[0] > 3: next_position[0] = 2
+                    if next_position[1] < 0: next_position[1] = 1  # bounce back when touching the boundary
+                    if next_position[1] > 3: next_position[1] = 2
+
+                for ca1 in cloud_acts:
+                    new_s2 = prod_s[0][2] + ca1  # cloud bounce back
+                    if new_s2 > 3:
+                        new_s2 = prod_s[0][2] - 1
+                    if new_s2 < 0:
+                        new_s2 = prod_s[0][2] + 1
+
+                    temp = tuple(list(next_position) + [new_s2] + [prod_s[0][3] - 1])  # enumerate next states
+                    temp_ = tuple(list(next_position) + [new_s2] + [mdp.full_tank])  # enumerate next states
+                    if list(next_position) not in mdp.station_coords:
+                        s_next = temp[:]
+                    else:
+                        s_next = temp_[:]
+
+                    for label in mdp.L[s_next]:  # out label with q_ should match out edge from q
+                        if tuple([label, q_src]) in dfa.state_transitions.keys():
+                            q_dst = dfa.state_transitions[label, q_src]  # p[0]
+
+                        if (prod_s[0], a, s_next) in mdp.P and tuple([s_next, q_dst]) in result.S:  # TODO: check the second condition: and tuple([s_next, q_dst]) in result.S
+
+                            new_P[prod_s, a][tuple([s_next, q_dst])] = mdp.P[prod_s[0], a, s_next]
+
+        for prod_s_fail in fail_states:
+            for a in self.A:
+                if (prod_s_fail, a) not in new_P:
+                    new_P[prod_s_fail, a] = {}
+                    new_P[prod_s_fail, a][prod_s_fail] = 1.0
+
+        result.P = dcp(new_P)
+        result.dfa = dcp(dfa)
+        result.mdp = dcp(mdp)
+
+        for key in result.ASF.keys():
+            if key not in result.ASR:
+                result.ASR[key] = result.AS_reachability(result.ASF[key], flag)
+                result.vector_V[key] = {}
+                result.vector_V_ancestor_status[key] = {}
+
+        for s in result.S:
+            result.init_ASR_V(s)
+
+        return result
+
     # API: DFA * MDP product
     def product(self, dfa, mdp, flag = 'toy'):
         result = MDP(self.transition_file)
@@ -347,13 +460,12 @@ class MDP:
         #         if s == transition[0] and transition[2] not in filtered_S and self.P[transition] > 0:  # removing positive transitions to sink states
         #             removing_states.append(s)
 
-
         filtered_S = dcp(list(set(filtered_S)-set(removing_states)))
         result.originS = dcp(filtered_S)
 
         if flag == 'toy':
             result.init_S = self.crossproduct2(list([dfa.initial_state]), mdp.Exp['1'])
-            new_success = self.crossproduct2(list(dfa.final_states - dfa.sink_states), filtered_S)
+            new_success = self.crossproduct2(list(dfa.final_states - dfa.failure_states), filtered_S)
 
             # calculate F states for each pref node:
             for key in dfa.inv_pref_labels.keys():
@@ -361,7 +473,7 @@ class MDP:
                     result.ASF[key] = result.crossproduct2(dfa.inv_pref_labels[key], filtered_S)
         else:
             result.init_S = self.crossproduct(list([dfa.initial_state]), mdp.Exp['!(a|b|c|base|dead)']) # init state should not be at the target or base or sink states
-            new_success = self.crossproduct(list(dfa.final_states - dfa.sink_states), filtered_S)
+            new_success = self.crossproduct(list(dfa.final_states - dfa.failure_states), filtered_S)
 
             # calculate F states for each pref node:
             for key in dfa.inv_pref_labels.keys():
@@ -386,7 +498,7 @@ class MDP:
                     if p[0] not in seen_sink:
                         logging.warning("sink state %s encountered, so far %s/224", p[0], len(seen_sink))
                         seen_sink.append(p[0])
-                    for q in dfa.sink_states:
+                    for q in dfa.failure_states:
                         new_s = (p[0], q)
                         new_a = p[1]
                         new_s_ = (p[2], q)
@@ -399,8 +511,14 @@ class MDP:
                     continue
 
                 for q in dfa.states:
+                    # p[0]: src
+                    # p[1]: action
+                    # p[2]: dst
                     if p[0] == 1 and p[2] == 0 and q == 1:
                         pass
+
+                    if q in dfa.failure_states:
+                        continue
 
                     # if q not in dfa.final_states and mdp.L[p[0]][0] in dfa.final_transitions:  # initial state not allowed with final states of dfa
                     #     continue
@@ -427,7 +545,6 @@ class MDP:
                             else:
                                 new_P[new_s, new_a][new_s_] = mdp.P[p]
 
-
                             if tuple(new_s_) not in true_new_s:
                                 true_new_s.append(tuple(new_s_))
 
@@ -435,7 +552,6 @@ class MDP:
                         true_new_s.append(tuple(new_s))
                     if p[2] in mdp.unsafe and tuple(new_s_) not in check_unsafe:
                         check_unsafe.append(new_s_)
-
 
         result.set_S(true_new_s)
 
@@ -481,7 +597,7 @@ class MDP:
 
         if flag == 'toy':
             result.init_S = self.crossproduct2(list([dfa.initial_state]), mdp.Exp['1'])
-            new_success = self.crossproduct2(list(dfa.final_states - dfa.sink_states), filtered_S)
+            new_success = self.crossproduct2(list(dfa.final_states - dfa.failure_states), filtered_S)
 
             # calculate F states for each pref node:
             for key in dfa.inv_pref_labels.keys():
@@ -489,7 +605,7 @@ class MDP:
                     result.ASF[key] = result.crossproduct2(dfa.inv_pref_labels[key], filtered_S)
         else:
             result.init_S = self.crossproduct(list([dfa.initial_state]), mdp.Exp['phi'])
-            new_success = self.crossproduct(list(dfa.final_states - dfa.sink_states), filtered_S)
+            new_success = self.crossproduct(list(dfa.final_states - dfa.failure_states), filtered_S)
 
             # calculate F states for each pref node:
             for key in dfa.inv_pref_labels.keys():
@@ -513,7 +629,7 @@ class MDP:
                     if p[0] not in seen_sink:
                         logging.warning("sink state %s encountered, so far %s/224", p[0], len(seen_sink))
                         seen_sink.append(p[0])
-                    for q in dfa.sink_states:
+                    for q in dfa.failure_states:
                         new_s = (p[0], q)
                         new_a = p[1]
                         new_s_ = (p[2], q)

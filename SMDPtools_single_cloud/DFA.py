@@ -48,7 +48,7 @@ class DFA:
             self.alphabet = alphabet
         self.initial_state = initial_state
         self.states = [initial_state]  # the list of states in the machine.
-        self.sink_states = set([])
+        self.failure_states = set([])
         self.effTS = {}
         self.invEffTS = {}
         self.transition_tree = {}
@@ -70,7 +70,7 @@ class DFA:
         print("Alphabet:", self.alphabet)
         print("Starting state:", self.initial_state)
         print("Accepting states:", self.final_states)
-        print("Sink state:", self.sink_states)
+        print("Sink state:", self.failure_states)
         print()
         print("States:", self.states)
         print("Transition function:")
@@ -101,7 +101,7 @@ class DFA:
         self.alphabet == []
         self.initial_state = []
         self.states = []  # the list of states in the machine.
-        self.sink_states = set([])
+        self.failure_states = set([])
         self.effTS = {}
         self.invEffTS = {}
         self.transition_tree = {}
@@ -144,7 +144,7 @@ class DFA:
 
                 if next_state not in self.transition_tree[state]:
                     self.transition_tree[state].append(next_state)
-                    if next_state in self.sink_states:
+                    if next_state in self.failure_states:
                         # print "insink"
                         self.state_info[state]['unsafe'].append(input_symbol)
                     else:
@@ -176,7 +176,7 @@ class DFA:
         delList = []
         for key in self.effTS:
             for state in self.effTS[key]:
-                if state[1] in self.sink_states:
+                if state[1] in self.failure_states:
                     delList.append(key)
                     break
         for key in delList:
@@ -277,7 +277,7 @@ class DFA:
         self.final_states.add(state)
 
     def set_sink(self, state):
-        self.sink_states.add(state)
+        self.failure_states.add(state)
         self.set_final(state)
 
     # TODO add a string parser for the input test, e.g recognize that 'g' satisfies '!y && !r'

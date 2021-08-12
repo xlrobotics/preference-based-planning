@@ -468,7 +468,7 @@ if __name__ == "__main__":
     #         print(key2, model.P[key2])
 
     # TODO: unit test, logging file storing the steps, input-output
-    init_q = 6
+    init_q = 3
     init_obs[3] = board.battery_cap - 1
     act_set = pi[tuple([tuple(init_obs), init_q, 'improved'])]
     gameOver = False
@@ -531,7 +531,7 @@ if __name__ == "__main__":
 
         if not gameOver:
 
-            if current_q in model.dfa.sink_states:
+            if current_q in model.dfa.failure_states:
                 print('sink state detected, task terminated at state', obs)
                 gameOver = True
             elif pref_level != 'bottom' and len(model.dfa.inv_pref_trans[pref_level]) == 0:
@@ -561,4 +561,5 @@ if __name__ == "__main__":
         # Set the frame speed by pausing between frames
         time.sleep(pauseTime)
 
-
+    pygame.quit()
+    sys.exit()

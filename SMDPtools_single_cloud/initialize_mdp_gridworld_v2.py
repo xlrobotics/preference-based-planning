@@ -302,7 +302,7 @@ if __name__ == "__main__":
     dfa.pref_trans['X2'] = []
     dfa.inv_pref_trans['X1'] = []
 
-    sink = list(dfa.sink_states)[0]
+    sink = list(dfa.failure_states)[0]
 
     # add self-loop transitions
     dfa.add_transition(n_ABC.display(), 0, 0)
@@ -350,8 +350,10 @@ if __name__ == "__main__":
     dfa.g_unsafe = 'sink'
 
     curve = {}
-    result = mdp.product(dfa, mdp, "gridworld")
-    result.plotKey = False
+    # result = mdp.product(dfa, mdp, "gridworld")
+    # result.plotKey = False
+
+    result = mdp.new_product(dfa, mdp, "gridworld")
 
     # MDP
     # - | states |
@@ -396,7 +398,7 @@ if __name__ == "__main__":
     # Product MDP
     # - | states |
     # - | edges |
-    print("|- Number of states in the product MDP:", len(result.S), ". Theoretical number: 624x10 + 56x3")  # 56x3 is because transitions related to AP '1': ('1', 7), ('1', 8), ('1', 9)
+    print("|- Number of states in the product MDP:", len(result.S), ". Theoretical number: 8 + 616 * 8 + 624 + 56x3")  # 56x3 is because transitions related to AP '1': ('1', 7), ('1', 8), ('1', 9)
     counter = 0
     for src_act in result.P:
         counter += len(result.P[src_act])
@@ -406,6 +408,8 @@ if __name__ == "__main__":
     with open("prod_MDP_gridworld_v2.pkl", 'wb') as pkl_file:
         pickle.dump(result, pkl_file)
 
+    pygame.quit()
+    sys.exit()
 
 
 

@@ -20,6 +20,11 @@ def vector_value(mdp, state):
         pref_seq.append(pref_state)
         vector_s.append(mdp.vector_V[pref_state][state])
 
+        # try:
+        #     vector_s.append(mdp.vector_V[pref_state][state])
+        # except KeyError:
+        #     print(pref_state, state)
+
     return tuple(vector_s), tuple(pref_seq)
 
 
@@ -49,6 +54,10 @@ def is_gt(mdp, v1, v2):
     # PATCH: remove X3
     vec1 = vec1[:2]
     vec2 = vec2[:2]
+
+    print("length of vec1:", len(vec1), ", length of vec2:", len(vec2))
+    print(v1)
+    print(v2)
 
     # Logic to check v1 >= v2
     gt_flag = False
@@ -238,7 +247,10 @@ if __name__ == '__main__':
         for s in stations:
             vector_0_to_9 = "station:" + str(s) + ", pref node:" + pref_node+"-{"
             for q in mdp.dfa.states:
-                vector_0_to_9 += str(mdp.vector_V[pref_node][tuple([tuple(list(s)+[cloud_pos]+[12]), q])]) + ", "
+                try:
+                    vector_0_to_9 += str(mdp.vector_V[pref_node][tuple([tuple(list(s)+[cloud_pos]+[12]), q])]) + ", "
+                except KeyError:
+                    print("Key", tuple([tuple(list(s)+[cloud_pos]+[12]), q]), "does not exist")
             vector_0_to_9 += "}"
             logging.info(vector_0_to_9)
 
@@ -246,7 +258,10 @@ if __name__ == '__main__':
             s = targets[key]
             vector_0_to_9 = key + ":" + str(s) + ", pref node:" + pref_node+"-{"
             for q in mdp.dfa.states:
-                vector_0_to_9 += str(mdp.vector_V[pref_node][tuple([tuple(list(s)+[cloud_pos]+[battery]), q])]) + ", "
+                try:
+                    vector_0_to_9 += str(mdp.vector_V[pref_node][tuple([tuple(list(s)+[cloud_pos]+[battery]), q])]) + ", "
+                except KeyError:
+                    print("Key", tuple([tuple(list(s) + [cloud_pos] + [battery]), q]), "does not exist")
             vector_0_to_9 += "}"
             logging.info(vector_0_to_9)
 
